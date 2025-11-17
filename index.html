@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v7.1 - Renamed)</title>
+    <title>Intelligent Roster System (v8.6.1 - Cache Fix)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -35,7 +35,7 @@
           projectId: "shift-tracker-b7879",
           storageBucket: "shift-tracker-b7879.firebasestorage.app",
           messagingSenderId: "619413261457",
-          appId: "1:619413261457:web:71bb4d19745a64aab20330",
+          appId: "1:619413261457:web:71bb4d19745a64aAB20330",
           measurementId: "G-Q0BFJ8SBSY"
         };
         
@@ -83,23 +83,48 @@
         const auth = window.auth;
 
         // --- Constants ---
-        const POSITIONS = [
+        
+        // Manual roles for "Security Control Office" table
+        const SECURITY_POSITIONS = [
+            "TEAM LEADER (I/C)", 
+            "SECTION I/C"
+        ];
+        
+        // Automated roles for "Foyer Deployment" table
+        const FOYER_POSITIONS = [
+            "XRAY-VISITOR",
+            "FOYER-OE",
+            "VERTICAL PROWLER"
+        ];
+
+        // Automated roles for "Sentry Deployment" table
+        const SENTRY_POSITIONS = [
             "E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY",
             "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"
         ];
+
         const TIME_SLOTS = [
             "2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs",
             "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"
         ];
         
-        // --- MODIFIED: Renamed sequence keys as requested ---
-        const SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
+        // --- ASSIGNMENT KEYS ---
+        // These keys are for the AUTOMATED sentry deployment ONLY.
+        const SENTRY_SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
+        
+        // Keys for the AUTOMATED Foyer assignment dropdown
+        const FOYER_ASSIGNMENT_KEYS = ["FOYER 1", "FOYER 2"];
+
+        // Combined list for populating the setup dropdown
+        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...FOYER_ASSIGNMENT_KEYS].sort();
+        // --- END ASSIGNMENT KEYS ---
+
         
         const UNASSIGNED_KEY = "Unassigned";
         const UNFILLED_SLOT = "---";
 
-        // --- MODIFIED: Hard-coded position sequences updated to match new keys ---
-        const POSITION_SEQUENCES = {
+        // This automation logic is UNCHANGED and only uses SENTRY_SEQUENCE_KEYS
+        const SENTRY_POSITION_SEQUENCES = {
             "E1":                             ["E1", "OE", "P2", "N1", "E3", "P1"],
             "PATROL 1":                       ["P1", "E1", "OE", "P2", "N1", "E3"],
             "E3":                             ["E3", "P1", "E1", "OE", "P2", "N1"],
@@ -183,7 +208,7 @@
                             } catch (err) {
                                 console.error("Authentication error: ", err);
                                 setAuthError("Failed to authenticate.");
-                                setAuthLoading(false);
+                                setLoading(false);
                             }
                         };
                         signIn();
@@ -201,7 +226,7 @@
                         {/* Header */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v7.1)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v8.6.1)</h1>
                                 <div className="flex space-x-2">
                                     <NavButton
                                         label="Daily Roster"
@@ -218,7 +243,7 @@
                         </header>
                         
                         {/* Page Content */}
-                        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+                        <main className="container mx-auto p-4 sm:p-6 lg:px-8">
                             {view === 'roster' && <RosterView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
                             {view === 'settings' && <StaffAndRosterSetupView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
                         </main>
@@ -259,7 +284,7 @@
             
             const handleRemoveStaff = async (id) => {
                 // Use a custom modal in a real app
-                if (window.confirm(`Are you sure you want to remove staff ID ${id}? This is permanent.`)) {
+                if (confirm(`Are you sure you want to remove staff ID ${id}? This is permanent.`)) {
                     try {
                         const staffDocRef = doc(db, STAFF_POOL_COLLECTION, id);
                         await deleteDoc(staffDocRef);
@@ -309,7 +334,7 @@
         // --- Sub-component for Daily Sequence Assignment ---
         function DailySequenceAssignment({ selectedDate, setSelectedDate }) {
             const { staffPool, loading: staffLoading } = useContext(StaffContext);
-            // State holds the *staff ID* for each sequence key, e.g., { E1: "12268", OE: "13798", ... }
+            // State holds the *staff ID* for each sequence key, e.g., { E1: "12268", "FOYER 1": "13798", ... }
             const [sequenceMap, setSequenceMap] = useState({});
             const [loading, setLoading] = useState(true);
             const [status, setStatus] = useState("idle");
@@ -321,13 +346,19 @@
                 setLoading(true);
                 const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    
+                    // Ensure all keys exist in the state map
+                    // 1. Create a default map with all keys
+                    const defaultMap = {};
+                    ALL_ASSIGNMENT_KEYS.forEach(key => defaultMap[key] = "");
+
                     if (docSnap.exists()) {
-                        setSequenceMap(docSnap.data().sequenceMap || {});
+                        // 2. Merge the loaded map over the default map
+                        const loadedMap = docSnap.data().sequenceMap || {};
+                        setSequenceMap({ ...defaultMap, ...loadedMap });
                     } else {
-                        // Init empty map
-                        const emptyMap = {};
-                        SEQUENCE_KEYS.forEach(key => emptyMap[key] = "");
-                        setSequenceMap(emptyMap);
+                        // 3. Just use the default map if doc doesn't exist
+                        setSequenceMap(defaultMap);
                     }
                     setLoading(false);
                 }, (err) => {
@@ -339,10 +370,8 @@
                 return () => unsubscribe();
             }, [selectedDate]);
 
-            // This is the V7 logic:
-            // When a user selects a staff member (e.g., "12268") for a slot (e.g., "E1"),
-            // we must also check if "12268" was already assigned to another slot (e.g., "P2")
-            // and un-assign them from "P2".
+            // This logic now checks ALL_ASSIGNMENT_KEYS
+            // A staff member can only be assigned to ONE role (either sentry or manual)
             const handleSequenceChange = (keyToAssign, staffId) => {
                 setStatus("idle");
                 const newMap = { ...sequenceMap };
@@ -352,7 +381,7 @@
                 
                 // If staffId is not blank, check for duplicates and clear them
                 if (staffId) {
-                    SEQUENCE_KEYS.forEach(key => {
+                    ALL_ASSIGNMENT_KEYS.forEach(key => {
                         if (key !== keyToAssign && newMap[key] === staffId) {
                             newMap[key] = ""; // Un-assign from old slot
                         }
@@ -380,10 +409,10 @@
             const isLoading = staffLoading || loading;
             
             // This maps the *assigned* staff IDs back to their sequence keys
-            // e.g., { "12268": "E1", "13798": "OE", ... }
+            // e.g., { "12268": "E1", "13798": "FOYER 1", ... }
             const staffToSequenceMap = useMemo(() => {
                 const map = {};
-                for (const key of SEQUENCE_KEYS) {
+                for (const key of ALL_ASSIGNMENT_KEYS) {
                     const staffId = sequenceMap[key];
                     if (staffId) {
                         map[staffId] = key;
@@ -409,10 +438,11 @@
                     
                     {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
                     
-                    {/* --- MODIFIED: Updated description text --- */}
                     <p className="text-gray-600 mb-4">
-                        Assign a location slot (`{SEQUENCE_KEYS.join('`, `')}`) to the 6 staff on duty.
-                        Leave all other staff as `Unassigned`.
+                        Assign a role to each staff member.
+                        <span className="font-medium text-blue-600">Sentry roles</span> (`{SENTRY_SEQUENCE_KEYS.join('`, `')}`)
+                        and <span className="font-medium text-green-600">Foyer roles</span> (`{FOYER_ASSIGNMENT_KEYS.join('`, `')}`)
+                        are now used for automation.
                     </p>
                     
                     {isLoading && <p>Loading...</p>}
@@ -424,11 +454,18 @@
                                 // Find what sequence this staff is assigned to (e.g., "E1" or "")
                                 const assignedSequence = staffToSequenceMap[staffId] || "";
                                 
+                                // Check assignment type for styling
+                                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.includes(assignedSequence);
+                                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.includes(assignedSequence);
+
                                 return (
                                     <div 
                                         key={staffId}
+                                        // Apply conditional styling
                                         className={`p-4 border rounded-lg flex items-center justify-between transition-all ${
-                                            assignedSequence ? 'bg-blue-100 border-blue-300' : 'bg-white'
+                                            isSentryAssignment ? 'bg-blue-100 border-blue-300' :
+                                            isFoyerAssignment ? 'bg-green-100 border-green-300' :
+                                            'bg-white'
                                         }`}
                                     >
                                         <span className="text-lg font-medium text-gray-900">{staffId}</span>
@@ -448,16 +485,18 @@
                                                     handleSequenceChange(newKey, staffId);
                                                 }
                                             }}
-                                            className="p-2 border border-gray-300 rounded-md shadow-sm"
+                                            // Added w-40 and truncate to fix overflow
+                                            className="p-2 border border-gray-300 rounded-md shadow-sm w-40 truncate"
                                         >
                                             <option value="">{UNASSIGNED_KEY}</option>
-                                            {SEQUENCE_KEYS.map(key => {
+                                            {ALL_ASSIGNMENT_KEYS.map(key => {
                                                 const staffInThisSlot = sequenceMap[key];
                                                 const isThisStaff = staffInThisSlot === staffId;
                                                 const isSlotTaken = staffInThisSlot && !isThisStaff;
                                                 
                                                 return (
-                                                    <option key={key} value={key} disabled={isSlotTaken}>
+                                                    // Added truncate to options as well
+                                                    <option key={key} value={key} disabled={isSlotTaken} className="truncate">
                                                         {key} {isSlotTaken ? `(taken by ${staffInThisSlot})` : ""}
                                                     </option>
                                                 );
@@ -546,24 +585,78 @@
                 
                 try {
                     const sequenceMap = dailyAssignments.sequenceMap;
-                    const newRosterGrid = {};
+                    const newRosterGrid = rosterData ? { ...rosterData } : {};
 
-                    POSITIONS.forEach(pos => {
+                    // --- 1. SENTRY DEPLOYMENT (Automated) ---
+                    // This logic is UNCHANGED
+                    SENTRY_POSITIONS.forEach(pos => {
                         const positionRoster = [];
-                        // Get the sequence for this position, e.g., ["E1", "OE", "P2", ...]
-                        const letterSequence = POSITION_SEQUENCES[pos]; 
+                        const letterSequence = SENTRY_POSITION_SEQUENCES[pos]; 
                         
-                        for (let timeIndex = 0; timeIndex < TIME_SLOTS.length; timeIndex++) {
-                            const sequenceIndex = timeIndex % 6; // 0-5
-                            const sequenceKey = letterSequence[sequenceIndex]; // e.g., "E1"
-                            const requiredStaff = sequenceMap[sequenceKey]; // Get Staff ID, e.g., "12268"
-                            
-                            positionRoster.push(requiredStaff || UNFILLED_SLOT);
+                        if (letterSequence) { // Ensure position has a sequence
+                            for (let timeIndex = 0; timeIndex < TIME_SLOTS.length; timeIndex++) {
+                                const sequenceIndex = timeIndex % 6; // 0-5
+                                const sequenceKey = letterSequence[sequenceIndex]; // e.g., "E1"
+                                const requiredStaff = sequenceMap[sequenceKey]; 
+                                
+                                positionRoster.push(requiredStaff || UNFILLED_SLOT);
+                            }
+                            newRosterGrid[pos] = positionRoster;
                         }
-                        newRosterGrid[pos] = positionRoster;
                     });
+
+                    // --- 2. FOYER DEPLOYMENT (3-Hour Rotation) ---
+                    // Get the 2 assigned staff
+                    const staffA = sequenceMap["FOYER 1"] || UNFILLED_SLOT;
+                    const staffB = sequenceMap["FOYER 2"] || UNFILLED_SLOT;
+
+                    // 3-hour rotation pattern
+                    const xraySequence = [
+                        staffA, staffA, staffA, // 20:00 - 22:00
+                        staffB, staffB, staffB, // 23:00 - 01:00
+                        staffA, staffA, staffA, // 02:00 - 04:00
+                        staffB, staffB, staffB  // 05:00 - 07:00
+                    ];
                     
-                    // Save the new roster
+                    // Inverse pattern for FOYER-OE
+                    const foyerOESequence = [
+                        staffB, staffB, staffB, // 20:00 - 22:00
+                        staffA, staffA, staffA, // 23:00 - 01:00
+                        staffB, staffB, staffB, // 02:00 - 04:00
+                        staffA, staffA, staffA  // 05:00 - 07:00
+                    ];
+
+                    // Vertical Prowler is done by the person who *would be* on FOYER-OE
+                    const verticalProwlerSequence = Array(12).fill(UNFILLED_SLOT);
+                    verticalProwlerSequence[0] = foyerOESequence[0]; // 20:00
+                    verticalProwlerSequence[3] = foyerOESequence[3]; // 23:00
+                    // verticalProwlerSequence[5] is blank (for 01:30)
+                    verticalProwlerSequence[8] = foyerOESequence[8]; // 04:00
+                    verticalProwlerSequence[10] = foyerOESequence[10]; // 06:00
+
+                    // *** NEW LOGIC: Make FOYER-OE blank at specific times ***
+                    // User requested: 20:00, 21:00, 23:00, 04:00, 06:00
+                    foyerOESequence[0] = UNFILLED_SLOT; // 20:00
+                    foyerOESequence[1] = UNFILLED_SLOT; // 21:00
+                    foyerOESequence[3] = UNFILLED_SLOT; // 23:00
+                    foyerOESequence[8] = UNFILLED_SLOT; // 04:00
+                    foyerOESequence[10] = UNFILLED_SLOT; // 06:00
+                    
+                    // Assign new sequences to the grid
+                    newRosterGrid["XRAY-VISITOR"] = xraySequence;
+                    newRosterGrid["FOYER-OE"] = foyerOESequence;
+                    newRosterGrid["VERTICAL PROWLER"] = verticalProwlerSequence;
+                    
+                    
+                    // --- 3. SECURITY CONTROL OFFICE (Manual) ---
+                    // This loop just ensures the manual rows exist, it doesn't overwrite them
+                    SECURITY_POSITIONS.forEach(secPos => {
+                        if (!newRosterGrid[secPos]) {
+                            newRosterGrid[secPos] = Array(TIME_SLOTS.length).fill(""); // Init as empty
+                        }
+                    });
+
+                    // --- 4. Save the new roster ---
                     const docRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
                     await setDoc(docRef, { 
                         rosterGrid: newRosterGrid,
@@ -610,6 +703,52 @@
                 setIsDirty(true);
             };
             
+            // --- Helper to render a table body ---
+            const renderTableBody = (positions) => {
+                return (
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {positions.map(pos => (
+                            <tr key={pos} className="hover:bg-gray-50">
+                                <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{pos}</td>
+                                {TIME_SLOTS.map((time, index) => {
+                                    const value = rosterData[pos]?.[index] || "";
+                                    
+                                    // Check if this position is part of any automation
+                                    const isAutomated = SENTRY_POSITION_SEQUENCES[pos] || FOYER_POSITIONS.includes(pos);
+                                    const isMissing = isAutomated && value === UNFILLED_SLOT;
+                                    
+                                    return (
+                                        <td key={time} className="p-0">
+                                            <input
+                                                type="text"
+                                                value={value}
+                                                onChange={(e) => handleCellChange(pos, index, e.target.value)}
+                                                className={`w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                                                    isMissing ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-white'
+                                                }`}
+                                                placeholder="ID"
+                                            />
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                );
+            };
+
+            // --- Helper to render a table header ---
+            const renderTableHeader = () => (
+                <thead className="bg-gray-100">
+                    <tr>
+                        <th className="sticky left-0 bg-gray-100 p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
+                        {TIME_SLOTS.map(time => (
+                            <th key={time} className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                        ))}
+                    </tr>
+                </thead>
+            );
+
             return (
                 <div className="bg-white p-6 rounded-lg shadow-lg">
                     {/* Header: Date Picker + Buttons */}
@@ -655,42 +794,41 @@
                         </div>
                     )}
 
+                    {/* Render THREE tables */}
                     {rosterData && (
-                        <div className="overflow-x-auto shadow-md rounded-lg">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-100">
-                                    <tr>
-                                        <th className="sticky left-0 bg-gray-100 p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
-                                        {TIME_SLOTS.map(time => (
-                                            <th key={time} className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {POSITIONS.map(pos => (
-                                        <tr key={pos} className="hover:bg-gray-50">
-                                            <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{pos}</td>
-                                            {TIME_SLOTS.map((time, index) => {
-                                                const value = rosterData[pos]?.[index] || "";
-                                                const isMissing = value === UNFILLED_SLOT;
-                                                return (
-                                                    <td key={time} className="p-0">
-                                                        <input
-                                                            type="text"
-                                                            value={value}
-                                                            onChange={(e) => handleCellChange(pos, index, e.target.value)}
-                                                            className={`w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                                                                isMissing ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-white'
-                                                            }`}
-                                                            placeholder="ID"
-                                                        />
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="space-y-6">
+                            {/* Table 1: Security Control Office (Manual) */}
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2 text-gray-700">Security Control Office</h3>
+                                <div className="overflow-x-auto shadow-md rounded-lg border">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        {renderTableHeader()}
+                                        {renderTableBody(SECURITY_POSITIONS)}
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            {/* Table 2: Foyer Deployment (NOW AUTOMATED) */}
+                            <div className="border-t border-gray-300 pt-6">
+                                <h3 className="text-lg font-semibold mb-2 text-gray-700">Foyer Deployment</h3>
+                                <div className="overflow-x-auto shadow-md rounded-lg border">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        {renderTableHeader()}
+                                        {renderTableBody(FOYER_POSITIONS)}
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Table 3: Sentry Deployment (Automated) */}
+                            <div className="border-t border-gray-300 pt-6">
+                                <h3 className="text-lg font-semibold mb-2 text-gray-700">Sentry Deployment</h3>
+                                <div className="overflow-x-auto shadow-md rounded-lg border">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        {renderTableHeader()}
+                                        {renderTableBody(SENTRY_POSITIONS)}
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -703,4 +841,5 @@
     </script>
 </body>
 </html>
+
 
