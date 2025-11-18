@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v9.4 - Highlight)</title>
+    <title>Intelligent Roster System (v9.6 - UI Polish)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -236,7 +236,7 @@
                         {/* Header */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v9.4)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v9.6)</h1>
                                 <div className="flex space-x-2">
                                     <NavButton
                                         label="Daily Roster"
@@ -546,8 +546,12 @@
             const [error, setError] = useState(null);
             const [isDirty, setIsDirty] = useState(false);
             
-            // NEW: State for highlighting
+            // State for highlighting
             const [highlightedId, setHighlightedId] = useState(null);
+            
+            // NEW: State for focus view
+            // 'all', 'security', 'foyer', 'sentry'
+            const [focusView, setFocusView] = useState('all');
             
             // Subscribe to both roster and setup docs
             useEffect(() => {
@@ -556,6 +560,7 @@
                 setError(null);
                 setIsDirty(false); // Reset dirty state on date change
                 setHighlightedId(null); // Reset highlight on date change
+                setFocusView('all'); // Reset focus on date change
 
                 // 1. Get Daily Assignments (to generate roster)
                 const assignmentsDocRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
@@ -764,8 +769,9 @@
 
                                         const getCellClasses = () => {
                                             let baseClasses = "w-16 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                            // MODIFIED: New highlight style
                                             if (isHighlighted) {
-                                                return baseClasses + " bg-blue-300 ring-2 ring-blue-600 text-black font-bold";
+                                                return baseClasses + " bg-yellow-300 ring-2 ring-yellow-500 text-black font-bold";
                                             }
                                             if (isMissing) {
                                                 return baseClasses + " bg-yellow-100 text-yellow-800 font-bold";
@@ -837,8 +843,9 @@
                                     if (index === 2) {
                                         // Logic for the dropdown
                                         let selectClasses = "w-16 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                        // MODIFIED: New highlight style
                                         if (isHighlighted) {
-                                            selectClasses += " bg-blue-300 ring-2 ring-blue-600 text-black font-bold";
+                                            selectClasses += " bg-yellow-300 ring-2 ring-yellow-500 text-black font-bold";
                                         } else if (isMissing) {
                                             selectClasses += " bg-yellow-100 text-yellow-800 font-bold";
                                         } else {
@@ -869,8 +876,9 @@
 
                                     // Render normal input for other slots
                                     let inputClasses = "w-16 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                    // MODIFIED: New highlight style
                                     if (isHighlighted) {
-                                        inputClasses += " bg-blue-300 ring-2 ring-blue-600 text-black font-bold";
+                                        inputClasses += " bg-yellow-300 ring-2 ring-yellow-500 text-black font-bold";
                                     } else if (isMissing) {
                                         inputClasses += " bg-yellow-100 text-yellow-800 font-bold";
                                     } else {
@@ -890,12 +898,37 @@
                                             />
                                         </td>
                                     );
-                                })}
+D                                })}
                             </tr>
                         </tbody>
                     </table>
                 </div>
             );
+            
+            // --- NEW: Focus Button Component ---
+            const FocusButton = ({ label, view, icon }) => {
+                const isActive = focusView === view;
+                const baseClasses = "py-2 px-3 sm:px-4 text-xs sm:text-sm rounded-md font-medium transition-all duration-200 flex items-center gap-1";
+                const activeClasses = "bg-blue-600 text-white shadow-md";
+                const inactiveClasses = "bg-white text-gray-600 hover:bg-gray-200";
+                
+                // Simple SVG icons
+                const icons = {
+                    all: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>,
+                    security: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12 12 0 0012 21.697z" /></svg>,
+                    foyer: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+                    sentry: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                };
+
+                return (
+                    <button onClick={() => setFocusView(view)} className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}>
+                        {icons[icon]}
+                        <span className="hidden sm:inline">{label}</span>
+                        {/* MODIFIED: Show label on mobile if it's 'SCR' */}
+                        <span className="sm:hidden">{label === 'SCR' ? 'SCR' : ''}</span>
+                    </button>
+                );
+            };
 
 
             return (
@@ -948,51 +981,67 @@
                     {rosterData && (
                         // MODIFIED: p-2 for mobile, sm:p-0 for larger
                         <div className="space-y-6 p-2 sm:p-0">
-                            {/* Table 1: Security Control Office (NOW AUTOMATED) */}
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2 text-gray-700">Security Control Office</h3>
-                                <div className="overflow-x-auto shadow-md rounded-lg border">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        {renderTableHeader()}
-                                        {renderTableBody(SECURITY_POSITIONS)}
-                                    </table>
-                                </div>
+                        
+                            {/* NEW: Focus Toggle Buttons */}
+                            <div className="flex space-x-2 p-2 sm:p-0 bg-gray-100 sm:bg-transparent rounded-lg">
+                                <FocusButton label="Show All" view="all" icon="all" />
+                                {/* MODIFIED: Renamed to SCR */}
+                                <FocusButton label="SCR" view="security" icon="security" />
+                                <FocusButton label="Foyer" view="foyer" icon="foyer" />
+                                <FocusButton label="Sentry" view="sentry" icon="sentry" />
                             </div>
+                        
+                            {/* Table 1: Security Control Office (NOW AUTOMATED) */}
+                            {(focusView === 'all' || focusView === 'security') && (
+                                <div className={focusView !== 'all' ? 'border-t border-gray-300 pt-4' : ''}>
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Security Control Office</h3>
+                                    <div className="overflow-x-auto shadow-md rounded-lg border">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            {renderTableHeader()}
+                                            {renderTableBody(SECURITY_POSITIONS)}
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                             
                             {/* Table 2: Foyer Deployment (NOW SPLIT) */}
-                            <div className="border-t border-gray-300 pt-6 space-y-4">
-                                <h3 className="text-lg font-semibold mb-2 text-gray-700">Foyer Deployment</h3>
-                                {/* Part 1: Main Foyer */}
-                                <div className="overflow-x-auto shadow-md rounded-lg border">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        {renderTableHeader()}
-                                        {renderTableBody(FOYER_POSITIONS)}
-                                    </table>
-                                </div>
-                                
-                                {/* NEW: Extract staff IDs for dropdown */}
-                                {(() => {
-                                    // Get the first ID listed for leader/ic
-                                    // This data is now reliably populated by handleGenerateRoster
-                                    const teamLeaderId = (rosterData[SECURITY_POSITIONS[0]]?.[0] || "").trim();
-                                    const sectionIcId = (rosterData[SECURITY_POSITIONS[1]]?.[0] || "").trim();
-                                    // Create a unique list of valid IDs
-                                    const controlRoomStaff = [...new Set([teamLeaderId, sectionIcId].filter(id => id && id !== UNFILLED_SLOT && id !== ""))];
+                             {(focusView === 'all' || focusView === 'foyer') && (
+                                <div className="border-t border-gray-300 pt-6 space-y-4">
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Foyer Deployment</h3>
+                                    {/* Part 1: Main Foyer */}
+                                    <div className="overflow-x-auto shadow-md rounded-lg border">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            {renderTableHeader()}
+                                            {renderTableBody(FOYER_POSITIONS)}
+                                        </table>
+                                    </div>
                                     
-                                    return renderVerticalProwlerTable(controlRoomStaff);
-                                })()}
-                            </div>
+                                    {/* Extract staff IDs for dropdown */}
+                                    {(() => {
+                                        // Get the first ID listed for leader/ic
+                                        // This data is now reliably populated by handleGenerateRoster
+                                        const teamLeaderId = (rosterData[SECURITY_POSITIONS[0]]?.[0] || "").trim();
+                                        const sectionIcId = (rosterData[SECURITY_POSITIONS[1]]?.[0] || "").trim();
+                                        // Create a unique list of valid IDs
+                                        const controlRoomStaff = [...new Set([teamLeaderId, sectionIcId].filter(id => id && id !== UNFILLED_SLOT && id !== ""))];
+                                        
+                                        return renderVerticalProwlerTable(controlRoomStaff);
+                                    })()}
+                                </div>
+                             )}
 
                             {/* Table 3: Sentry Deployment (Automated) */}
-                            <div className="border-t border-gray-300 pt-6">
-                                <h3 className="text-lg font-semibold mb-2 text-gray-700">Sentry Deployment</h3>
-                                <div className="overflow-x-auto shadow-md rounded-lg border">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        {renderTableHeader()}
-                                        {renderTableBody(SENTRY_POSITIONS)}
-                                    </table>
+                             {(focusView === 'all' || focusView === 'sentry') && (
+                                <div className="border-t border-gray-300 pt-6">
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Sentry Deployment</h3>
+                                    <div className="overflow-x-auto shadow-md rounded-lg border">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            {renderTableHeader()}
+                                            {renderTableBody(SENTRY_POSITIONS)}
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>
