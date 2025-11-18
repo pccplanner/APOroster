@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v12.7 - Clear Function Added)</title>
+    <title>Intelligent Roster System (v12.8 - Sentry View Names)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -269,7 +269,7 @@
                         {/* Header */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.7)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.8)</h1>
                                 <div className="flex space-x-2">
                                     <NavButton
                                         label="Daily Roster"
@@ -1096,6 +1096,26 @@
                             const isProwlerRow = pos.startsWith("PERIMETER PROWLER");
                             const isManualStandbyRow = pos.startsWith("OE/ STANDBY-");
                             
+                            // --- NEW: Display Name Logic for Sentry View ---
+                            let displayName = pos;
+                            if (focusView === 'sentry') {
+                                if (pos === "PERIMETER PROWLER (1st Half)") {
+                                    displayName = "1st Half";
+                                } else if (pos === "PERIMETER PROWLER (2nd Half)") {
+                                    displayName = "2nd Half";
+                                } else if (pos === "PATROL 1") {
+                                    displayName = "P1";
+                                } else if (pos === "PATROL 2") {
+                                    displayName = "P2";
+                                } else if (pos === "N1 (CNB)") {
+                                    displayName = "N1";
+                                } else if (pos === "OE/ STANDBY") {
+                                    displayName = "OE";
+                                } else if (pos.startsWith("OE/ STANDBY-")) {
+                                    displayName = pos.replace("OE/ STANDBY", "OE");
+                                }
+                            }
+                            
                             return (
                                 <tr key={pos} className={`${
                                     isProwlerRow ? 'bg-gray-100' : 
@@ -1107,7 +1127,7 @@
                                         isManualStandbyRow ? 'bg-purple-50' : 'bg-white'
                                     }`}>
                                         <div className="flex items-center justify-between">
-                                            <span>{pos}</span>
+                                            <span>{displayName}</span>
                                             
                                             {pos === "OE/ STANDBY" && (
                                                 <button 
