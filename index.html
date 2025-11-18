@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v12.6 - Data Clear Fix)</title>
+    <title>Intelligent Roster System (v12.7 - Clear Function Added)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -269,7 +269,7 @@
                         {/* Header */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.6)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.7)</h1>
                                 <div className="flex space-x-2">
                                     <NavButton
                                         label="Daily Roster"
@@ -479,6 +479,16 @@
                 }
                 setSequenceMap(newMap);
             };
+            
+            // --- NEW: Clear All Function ---
+            const handleClearAll = () => {
+                if (window.confirm("Are you sure you want to CLEAR ALL assignments for this date? \n\nThis will remove all current selections. You will need to click 'Save' to persist this change.")) {
+                    const emptyMap = {};
+                    allAssignmentKeys.forEach(key => emptyMap[key] = []);
+                    setSequenceMap(emptyMap);
+                    setStatus("idle"); // Reset save status so user knows to save again
+                }
+            };
 
             const handleSave = async () => {
                 setStatus("saving");
@@ -602,15 +612,26 @@
                     )}
                     
                     <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4">
-                        {status === 'saved' && <span className="text-green-600">Saved!</span>}
-                        {status === 'error' && <span className="text-red-600">Save failed!</span>}
+                        {/* Clear All Button */}
                         <button
-                            onClick={handleSave}
+                            onClick={handleClearAll}
                             disabled={status === 'saving' || isLoading}
-                            className="py-2 px-6 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                            className="py-2 px-4 bg-red-500 text-white rounded-md shadow-md font-medium hover:bg-red-600 disabled:bg-gray-400"
                         >
-                            {status === 'saving' ? "Saving..." : "Save Daily Assignments"}
+                            Clear All
                         </button>
+
+                        <div className="flex items-center gap-4">
+                            {status === 'saved' && <span className="text-green-600">Saved!</span>}
+                            {status === 'error' && <span className="text-red-600">Save failed!</span>}
+                            <button
+                                onClick={handleSave}
+                                disabled={status === 'saving' || isLoading}
+                                className="py-2 px-6 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                            >
+                                {status === 'saving' ? "Saving..." : "Save Daily Assignments"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             );
@@ -1447,5 +1468,4 @@
     </script>
 </body>
 </html>
-
 
