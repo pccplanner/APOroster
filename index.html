@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v8.6.1 - Cache Fix)</title>
+    <title>Intelligent Roster System (v9.4 - Highlight)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -84,7 +84,7 @@
 
         // --- Constants ---
         
-        // Manual roles for "Security Control Office" table
+        // Automated roles for "Security Control Office" table
         const SECURITY_POSITIONS = [
             "TEAM LEADER (I/C)", 
             "SECTION I/C"
@@ -94,8 +94,9 @@
         const FOYER_POSITIONS = [
             "XRAY-VISITOR",
             "FOYER-OE",
-            "VERTICAL PROWLER"
         ];
+        // Vertical Prowler is now separate
+        const VERTICAL_PROWLER_POSITION = "VERTICAL PROWLER";
 
         // Automated roles for "Sentry Deployment" table
         const SENTRY_POSITIONS = [
@@ -103,20 +104,29 @@
             "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"
         ];
 
+        // 12-hour time slots for most tables
         const TIME_SLOTS = [
             "2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs",
             "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"
         ];
         
+        // 5-slot dedicated times for Vertical Prowler
+        const VERTICAL_PROWLER_SLOTS = [
+            "20:30", "23:00", "01:30", "04:00", "06:30"
+        ];
+        
         // --- ASSIGNMENT KEYS ---
-        // These keys are for the AUTOMATED sentry deployment ONLY.
+        // Keys for the AUTOMATED Sentry deployment
         const SENTRY_SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
         
-        // Keys for the AUTOMATED Foyer assignment dropdown
+        // Keys for the AUTOMATED Foyer assignment
         const FOYER_ASSIGNMENT_KEYS = ["FOYER 1", "FOYER 2"];
+        
+        // Keys for the AUTOMATED Security Control assignment
+        const SECURITY_ASSIGNMENT_KEYS = ["TEAM LEADER (I/C)", "SECTION I/C"];
 
         // Combined list for populating the setup dropdown
-        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...FOYER_ASSIGNMENT_KEYS].sort();
+        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS].sort();
         // --- END ASSIGNMENT KEYS ---
 
         
@@ -226,7 +236,7 @@
                         {/* Header */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v8.6.1)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v9.4)</h1>
                                 <div className="flex space-x-2">
                                     <NavButton
                                         label="Daily Roster"
@@ -242,8 +252,8 @@
                             </nav>
                         </header>
                         
-                        {/* Page Content */}
-                        <main className="container mx-auto p-4 sm:p-6 lg:px-8">
+                        {/* Page Content: MODIFIED: p-0 for mobile, p-6 for larger */}
+                        <main className="container mx-auto p-0 sm:p-6 lg:px-8">
                             {view === 'roster' && <RosterView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
                             {view === 'settings' && <StaffAndRosterSetupView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
                         </main>
@@ -299,7 +309,8 @@
             return (
                 <div className="space-y-6">
                     {/* Section 1: Manage Staff Pool */}
-                    <div className="bg-white p-6 rounded-lg shadow-lg">
+                    {/* MODIFIED: p-2 for mobile, p-6 for larger */}
+                    <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
                         <h2 className="text-xl font-bold mb-4 text-gray-800">1. Manage Staff Pool</h2>
                         {staffError && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{staffError}</div>}
                         
@@ -422,7 +433,8 @@
             }, [sequenceMap]);
 
             return (
-                <div className="bg-white p-6 rounded-lg shadow-lg">
+                // MODIFIED: p-2 for mobile, p-6 for larger
+                <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Roster Setup</h2>
                     
                     <div className="mb-6">
@@ -440,9 +452,10 @@
                     
                     <p className="text-gray-600 mb-4">
                         Assign a role to each staff member.
-                        <span className="font-medium text-blue-600">Sentry roles</span> (`{SENTRY_SEQUENCE_KEYS.join('`, `')}`)
-                        and <span className="font-medium text-green-600">Foyer roles</span> (`{FOYER_ASSIGNMENT_KEYS.join('`, `')}`)
-                        are now used for automation.
+                        <span className="font-medium text-blue-600">Sentry</span>, 
+                        <span className="font-medium text-green-600"> Foyer</span>,
+                        and <span className="font-medium text-orange-600"> Security Control</span>
+                        roles are now used for automation.
                     </p>
                     
                     {isLoading && <p>Loading...</p>}
@@ -457,6 +470,7 @@
                                 // Check assignment type for styling
                                 const isSentryAssignment = SENTRY_SEQUENCE_KEYS.includes(assignedSequence);
                                 const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.includes(assignedSequence);
+                                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.includes(assignedSequence);
 
                                 return (
                                     <div 
@@ -465,6 +479,7 @@
                                         className={`p-4 border rounded-lg flex items-center justify-between transition-all ${
                                             isSentryAssignment ? 'bg-blue-100 border-blue-300' :
                                             isFoyerAssignment ? 'bg-green-100 border-green-300' :
+                                            isSecurityAssignment ? 'bg-orange-100 border-orange-300' :
                                             'bg-white'
                                         }`}
                                     >
@@ -531,12 +546,16 @@
             const [error, setError] = useState(null);
             const [isDirty, setIsDirty] = useState(false);
             
+            // NEW: State for highlighting
+            const [highlightedId, setHighlightedId] = useState(null);
+            
             // Subscribe to both roster and setup docs
             useEffect(() => {
                 if (!selectedDate) return;
                 setLoading(true);
                 setError(null);
                 setIsDirty(false); // Reset dirty state on date change
+                setHighlightedId(null); // Reset highlight on date change
 
                 // 1. Get Daily Assignments (to generate roster)
                 const assignmentsDocRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
@@ -588,7 +607,6 @@
                     const newRosterGrid = rosterData ? { ...rosterData } : {};
 
                     // --- 1. SENTRY DEPLOYMENT (Automated) ---
-                    // This logic is UNCHANGED
                     SENTRY_POSITIONS.forEach(pos => {
                         const positionRoster = [];
                         const letterSequence = SENTRY_POSITION_SEQUENCES[pos]; 
@@ -606,11 +624,9 @@
                     });
 
                     // --- 2. FOYER DEPLOYMENT (3-Hour Rotation) ---
-                    // Get the 2 assigned staff
                     const staffA = sequenceMap["FOYER 1"] || UNFILLED_SLOT;
                     const staffB = sequenceMap["FOYER 2"] || UNFILLED_SLOT;
 
-                    // 3-hour rotation pattern
                     const xraySequence = [
                         staffA, staffA, staffA, // 20:00 - 22:00
                         staffB, staffB, staffB, // 23:00 - 01:00
@@ -618,7 +634,6 @@
                         staffB, staffB, staffB  // 05:00 - 07:00
                     ];
                     
-                    // Inverse pattern for FOYER-OE
                     const foyerOESequence = [
                         staffB, staffB, staffB, // 20:00 - 22:00
                         staffA, staffA, staffA, // 23:00 - 01:00
@@ -626,16 +641,21 @@
                         staffA, staffA, staffA  // 05:00 - 07:00
                     ];
 
-                    // Vertical Prowler is done by the person who *would be* on FOYER-OE
-                    const verticalProwlerSequence = Array(12).fill(UNFILLED_SLOT);
-                    verticalProwlerSequence[0] = foyerOESequence[0]; // 20:00
-                    verticalProwlerSequence[3] = foyerOESequence[3]; // 23:00
-                    // verticalProwlerSequence[5] is blank (for 01:30)
-                    verticalProwlerSequence[8] = foyerOESequence[8]; // 04:00
-                    verticalProwlerSequence[10] = foyerOESequence[10]; // 06:00
+                    // --- 5-SLOT Vertical Prowler (FIXED LOGIC) ---
+                    // Get existing data to preserve manual 01:30 slot
+                    const existingProwlerData = newRosterGrid[VERTICAL_PROWLER_POSITION] || [];
 
-                    // *** NEW LOGIC: Make FOYER-OE blank at specific times ***
-                    // User requested: 20:00, 21:00, 23:00, 04:00, 06:00
+                    // Prowler is the FOYER-OE person
+                    // This creates the [B, A, Manual, B, A] pattern
+                    const verticalProwlerSequence = [
+                        foyerOESequence[0],  // 20:30 (from 20:00 OE person -> Staff B)
+                        foyerOESequence[3],  // 23:00 (from 23:00 OE person -> Staff A)
+                        existingProwlerData[2] || UNFILLED_SLOT, // 01:30 (Preserve manual entry)
+                        foyerOESequence[8],  // 04:00 (from 04:00 OE person -> Staff B)
+                        foyerOESequence[10]  // 06:30 (from 06:00 OE person -> Staff A)
+                    ];
+
+                    // *** Blank out FOYER-OE slots ***
                     foyerOESequence[0] = UNFILLED_SLOT; // 20:00
                     foyerOESequence[1] = UNFILLED_SLOT; // 21:00
                     foyerOESequence[3] = UNFILLED_SLOT; // 23:00
@@ -645,25 +665,24 @@
                     // Assign new sequences to the grid
                     newRosterGrid["XRAY-VISITOR"] = xraySequence;
                     newRosterGrid["FOYER-OE"] = foyerOESequence;
-                    newRosterGrid["VERTICAL PROWLER"] = verticalProwlerSequence;
+                    newRosterGrid[VERTICAL_PROWLER_POSITION] = verticalProwlerSequence;
                     
                     
-                    // --- 3. SECURITY CONTROL OFFICE (Manual) ---
-                    // This loop just ensures the manual rows exist, it doesn't overwrite them
-                    SECURITY_POSITIONS.forEach(secPos => {
-                        if (!newRosterGrid[secPos]) {
-                            newRosterGrid[secPos] = Array(TIME_SLOTS.length).fill(""); // Init as empty
-                        }
-                    });
+                    // --- 3. SECURITY CONTROL OFFICE (NEWLY AUTOMATED) ---
+                    const teamLeaderId = sequenceMap["TEAM LEADER (I/C)"] || UNFILLED_SLOT;
+                    const sectionIcId = sequenceMap["SECTION I/C"] || UNFILLED_SLOT;
+
+                    // Fill all 12 slots with the same ID
+                    newRosterGrid["TEAM LEADER (I/C)"] = Array(TIME_SLOTS.length).fill(teamLeaderId);
+                    newRosterGrid["SECTION I/C"] = Array(TIME_SLOTS.length).fill(sectionIcId);
 
                     // --- 4. Save the new roster ---
                     const docRef = doc(db, DAILY_ROSTER_COLLECTION, selectedDate);
                     await setDoc(docRef, { 
                         rosterGrid: newRosterGrid,
-                        createdAt: new Date().toISOString()
-                    });
+                        updatedAt: new Date().toISOString(), // Use updatedAt for regen
+                    }, { merge: true }); // Merge to preserve manual fields
                     setIsDirty(false);
-                    // onSnapshot will update the view
                     setLoading(false);
                     
                 } catch (err) {
@@ -695,7 +714,8 @@
             const handleCellChange = (position, timeIndex, value) => {
                 setRosterData(prevRoster => {
                     const newRoster = { ...prevRoster };
-                    const newPositionArray = [...(newRoster[position] || Array(TIME_SLOTS.length).fill(""))];
+                    // Check if position exists, if not, create it.
+                    const newPositionArray = [...(newRoster[position] || [])];
                     newPositionArray[timeIndex] = value;
                     newRoster[position] = newPositionArray;
                     return newRoster;
@@ -703,36 +723,76 @@
                 setIsDirty(true);
             };
             
+            // NEW: Highlight click handler
+            const handleCellClick = (value) => {
+                if (!value || value === UNFILLED_SLOT) {
+                    setHighlightedId(null);
+                    return;
+                }
+                if (value === highlightedId) {
+                    setHighlightedId(null); // Toggle off
+                } else {
+                    setHighlightedId(value); // Set new highlight
+                }
+            };
+            
             // --- Helper to render a table body ---
             const renderTableBody = (positions) => {
                 return (
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {positions.map(pos => (
-                            <tr key={pos} className="hover:bg-gray-50">
-                                <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{pos}</td>
-                                {TIME_SLOTS.map((time, index) => {
-                                    const value = rosterData[pos]?.[index] || "";
-                                    
-                                    // Check if this position is part of any automation
-                                    const isAutomated = SENTRY_POSITION_SEQUENCES[pos] || FOYER_POSITIONS.includes(pos);
-                                    const isMissing = isAutomated && value === UNFILLED_SLOT;
-                                    
-                                    return (
-                                        <td key={time} className="p-0">
-                                            <input
-                                                type="text"
-                                                value={value}
-                                                onChange={(e) => handleCellChange(pos, index, e.target.value)}
-                                                className={`w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                                                    isMissing ? 'bg-yellow-100 text-yellow-800 font-bold' : 'bg-white'
-                                                }`}
-                                                placeholder="ID"
-                                            />
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
+                        {positions.map(pos => {
+                            // MODIFIED: Check for prowler row
+                            const isProwlerRow = pos.startsWith("PERIMETER PROWLER");
+                            
+                            return (
+                                // MODIFIED: Add bg-gray-100 to prowler row
+                                <tr key={pos} className={`${isProwlerRow ? 'bg-gray-100' : ''} hover:bg-gray-200`}>
+                                    {/* MODIFIED: Add bg-gray-100 to prowler sticky cell */}
+                                    <td className={`sticky left-0 p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r ${isProwlerRow ? 'bg-gray-100' : 'bg-white'}`}>{pos}</td>
+                                    {TIME_SLOTS.map((time, index) => {
+                                        const value = rosterData[pos]?.[index] || "";
+                                        
+                                        // Check if this position is part of any automation
+                                        const isAutomated = SENTRY_POSITION_SEQUENCES[pos] 
+                                                            || FOYER_POSITIONS.includes(pos) 
+                                                            || SECURITY_POSITIONS.includes(pos); // Now automated
+                                                            
+                                        const isMissing = isAutomated && value === UNFILLED_SLOT;
+                                        
+                                        // NEW: Highlight logic
+                                        const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
+
+                                        const getCellClasses = () => {
+                                            let baseClasses = "w-16 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                            if (isHighlighted) {
+                                                return baseClasses + " bg-blue-300 ring-2 ring-blue-600 text-black font-bold";
+                                            }
+                                            if (isMissing) {
+                                                return baseClasses + " bg-yellow-100 text-yellow-800 font-bold";
+                                            }
+                                            if (isAutomated) {
+                                                return baseClasses + (isProwlerRow ? ' bg-gray-100 text-gray-700' : ' bg-gray-50 text-gray-700');
+                                            }
+                                            return baseClasses + " bg-white";
+                                        };
+                                        
+                                        return (
+                                            <td key={time} className="p-0">
+                                                <input
+                                                    type="text"
+                                                    value={value}
+                                                    onChange={(e) => handleCellChange(pos, index, e.target.value)}
+                                                    onClick={() => handleCellClick(value)} // NEW
+                                                    className={getCellClasses()} // MODIFIED
+                                                    placeholder="ID"
+                                                    readOnly={isAutomated} // Set readOnly for all automated cells
+                                                />
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 );
             };
@@ -741,18 +801,108 @@
             const renderTableHeader = () => (
                 <thead className="bg-gray-100">
                     <tr>
-                        <th className="sticky left-0 bg-gray-100 p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
+                        <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
+                        {/* MODIFIED: p-1 for narrower header */}
                         {TIME_SLOTS.map(time => (
-                            <th key={time} className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                            <th key={time} className="p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
                         ))}
                     </tr>
                 </thead>
             );
 
+            // --- Helper for Vertical Prowler Table ---
+            const renderVerticalProwlerTable = (controlRoomStaff = []) => (
+                <div className="overflow-x-auto shadow-md rounded-lg border">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
+                                {/* MODIFIED: p-1 for narrower header */}
+                                {VERTICAL_PROWLER_SLOTS.map(time => (
+                                    <th key={time} className="p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            <tr className="hover:bg-gray-50">
+                                <td className="sticky left-0 bg-white p-2 text-sm font-medium text-gray-800 whitespace-nowrap z-10 border-r">{VERTICAL_PROWLER_POSITION}</td>
+                                {VERTICAL_PROWLER_SLOTS.map((time, index) => {
+                                    const value = rosterData[VERTICAL_PROWLER_POSITION]?.[index] || "";
+                                    const isMissing = value === UNFILLED_SLOT;
+                                    
+                                    // NEW: Highlight logic
+                                    const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
+
+                                    // NEW: Check if this is the 01:30 slot (index 2)
+                                    if (index === 2) {
+                                        // Logic for the dropdown
+                                        let selectClasses = "w-16 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                        if (isHighlighted) {
+                                            selectClasses += " bg-blue-300 ring-2 ring-blue-600 text-black font-bold";
+                                        } else if (isMissing) {
+                                            selectClasses += " bg-yellow-100 text-yellow-800 font-bold";
+                                        } else {
+                                            selectClasses += " bg-white";
+                                        }
+                                        
+                                        return (
+                                            <td key={time} className="p-0">
+                                                <select
+                                                    value={value}
+                                                    onChange={(e) => handleCellChange(VERTICAL_PROWLER_POSITION, index, e.target.value)}
+                                                    onClick={() => handleCellClick(value)} // NEW
+                                                    className={selectClasses} // MODIFIED
+                                                >
+                                                    <option value={UNFILLED_SLOT}>{UNFILLED_SLOT}</option>
+                                                    {/* Add unique staff IDs from control room */}
+                                                    {[...new Set(controlRoomStaff)].map(id => (
+                                                        <option key={id} value={id}>{id}</option>
+                                                    ))}
+                                                    {/* If value is old & not in list, show it */}
+                                                    {value && value !== UNFILLED_SLOT && !controlRoomStaff.includes(value) && (
+                                                        <option key={value} value={value}>{value} (Old)</option>
+                                                    )}
+                                                </select>
+                                            </td>
+                                        );
+                                    }
+
+                                    // Render normal input for other slots
+                                    let inputClasses = "w-16 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                    if (isHighlighted) {
+                                        inputClasses += " bg-blue-300 ring-2 ring-blue-600 text-black font-bold";
+                                    } else if (isMissing) {
+                                        inputClasses += " bg-yellow-100 text-yellow-800 font-bold";
+                                    } else {
+                                        inputClasses += " bg-gray-50 text-gray-700";
+                                    }
+                                    
+                                    return (
+                                        <td key={time} className="p-0">
+                                            <input
+                                                type="text"
+                                                value={value}
+                                                onChange={(e) => handleCellChange(VERTICAL_PROWLER_POSITION, index, e.target.value)}
+                                                onClick={() => handleCellClick(value)} // NEW
+                                                className={inputClasses} // MODIFIED
+                                                placeholder="ID"
+                                                readOnly // Make automated slots read-only
+                                            />
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            );
+
+
             return (
-                <div className="bg-white p-6 rounded-lg shadow-lg">
+                // MODIFIED: p-0 for mobile, sm:p-6 for larger
+                <div className="bg-white sm:p-6 rounded-lg shadow-lg">
                     {/* Header: Date Picker + Buttons */}
-                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 p-2 sm:p-0">
                         <div className="flex items-center gap-2">
                             <label htmlFor="roster-date-main" className="font-medium text-gray-700 text-lg">Roster Date:</label>
                             <input
@@ -782,10 +932,10 @@
                         </div>
                     </div>
                     
-                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
-                    {isDirty && <div className="text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4">You have unsaved changes.</div>}
+                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4 mx-2 sm:mx-0">{error}</div>}
+                    {isDirty && <div className="text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4 mx-2 sm:mx-0">You have unsaved changes.</div>}
 
-                    {loading && !rosterData && <div className="text-center p-8">Loading Roster...</div>}
+                    {loading && !rosterData && <div className="text-center p-8">Loading...</div>}
                     
                     {!loading && !rosterData && (
                         <div className="text-center p-8 bg-gray-50 rounded-md">
@@ -794,10 +944,11 @@
                         </div>
                     )}
 
-                    {/* Render THREE tables */}
+                    {/* Render THREE main sections */}
                     {rosterData && (
-                        <div className="space-y-6">
-                            {/* Table 1: Security Control Office (Manual) */}
+                        // MODIFIED: p-2 for mobile, sm:p-0 for larger
+                        <div className="space-y-6 p-2 sm:p-0">
+                            {/* Table 1: Security Control Office (NOW AUTOMATED) */}
                             <div>
                                 <h3 className="text-lg font-semibold mb-2 text-gray-700">Security Control Office</h3>
                                 <div className="overflow-x-auto shadow-md rounded-lg border">
@@ -808,15 +959,28 @@
                                 </div>
                             </div>
                             
-                            {/* Table 2: Foyer Deployment (NOW AUTOMATED) */}
-                            <div className="border-t border-gray-300 pt-6">
+                            {/* Table 2: Foyer Deployment (NOW SPLIT) */}
+                            <div className="border-t border-gray-300 pt-6 space-y-4">
                                 <h3 className="text-lg font-semibold mb-2 text-gray-700">Foyer Deployment</h3>
+                                {/* Part 1: Main Foyer */}
                                 <div className="overflow-x-auto shadow-md rounded-lg border">
                                     <table className="min-w-full divide-y divide-gray-200">
                                         {renderTableHeader()}
                                         {renderTableBody(FOYER_POSITIONS)}
                                     </table>
                                 </div>
+                                
+                                {/* NEW: Extract staff IDs for dropdown */}
+                                {(() => {
+                                    // Get the first ID listed for leader/ic
+                                    // This data is now reliably populated by handleGenerateRoster
+                                    const teamLeaderId = (rosterData[SECURITY_POSITIONS[0]]?.[0] || "").trim();
+                                    const sectionIcId = (rosterData[SECURITY_POSITIONS[1]]?.[0] || "").trim();
+                                    // Create a unique list of valid IDs
+                                    const controlRoomStaff = [...new Set([teamLeaderId, sectionIcId].filter(id => id && id !== UNFILLED_SLOT && id !== ""))];
+                                    
+                                    return renderVerticalProwlerTable(controlRoomStaff);
+                                })()}
                             </div>
 
                             {/* Table 3: Sentry Deployment (Automated) */}
