@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v13.0 - Consolidated Setup)</title>
+    <title>Intelligent Roster System (v13.5 - Dual Compact Layout)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -55,95 +55,67 @@
         window.auth = auth; 
         
         window.firebase = {
-            doc,
-            getDoc,
-            setDoc,
-            onSnapshot,
-            collection,
-            getDocs,
-            deleteDoc,
-            signInAnonymously,
-            onAuthStateChanged,
-            signInWithCustomToken,
-            initialAuthToken
+            doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc,
+            signInAnonymously, onAuthStateChanged, signInWithCustomToken, initialAuthToken
         };
     </script>
     
     <style>
         /* --- General Styling --- */
-        .highlight-cell {
-            background-color: #FDE047; /* yellow-300 */
-            border: 2px solid #F59E0B; /* amber-500 */
-            color: #000;
-            font-weight: bold;
-        }
-        .dropdown-permanent {
-            font-weight: bold;
-            color: #1D4ED8; /* blue-700 */
-            background-image: linear-gradient(45deg, #EFF6FF 50%, #DBEAFE 50%);
-            background-size: 8px 8px;
-        }
-        .dropdown-buffer {
-            font-weight: bold;
-            color: #581c87; /* purple-900 */
-            background-color: #d8b4fe; /* purple-300 */
-        }
-        select, input {
-            text-align: center !important;
-            text-align-last: center !important;
-            -moz-text-align-last: center !important;
-        }
+        .highlight-cell { background-color: #FDE047; border: 2px solid #F59E0B; color: #000; font-weight: bold; }
+        .dropdown-permanent { font-weight: bold; color: #1D4ED8; background-image: linear-gradient(45deg, #EFF6FF 50%, #DBEAFE 50%); background-size: 8px 8px; }
+        .dropdown-buffer { font-weight: bold; color: #581c87; background-color: #d8b4fe; }
+        select, input { text-align: center !important; text-align-last: center !important; -moz-text-align-last: center !important; }
         
-        /* --- Consolidated Setup Card Styles --- */
-        .staff-card-scheduled {
-            border: 1px solid #10B981; /* emerald-500 */
-            background-color: #F0FDF4; /* emerald-50 */
+        /* --- Consolidated Setup Card Styles (Section 1) --- */
+        /* CRITICAL: Set 3-column default on small screens */
+        .staff-pool-grid {
+             grid-template-columns: repeat(2, minmax(0, 1fr)); /* Default: 2 columns on tiny mobile */
         }
-        .staff-card-unscheduled {
-            border: 1px solid #F87171; /* red-400 */
-            background-color: #FEF2F2; /* red-50 */
+        @media (min-width: 400px) { /* Custom breakpoint for slightly larger phones */
+            .staff-pool-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } /* 3 columns start here */
         }
-        
-        /* --- PRINT STYLES (CRITICAL FOR USER REQUEST) --- */
+        @media (min-width: 768px) { /* md */
+            .staff-pool-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } /* 4 columns on tablets */
+        }
+        @media (min-width: 1024px) { /* lg */
+            .staff-pool-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } /* 5 columns on larger desktops */
+        }
+
+        .staff-card-scheduled { border: 1px solid #10B981; background-color: #F0FDF4; }
+        .staff-card-unscheduled { border: 1px solid #F87171; background-color: #FEF2F2; }
+
+        /* --- Assignment Card Styles (Section 2) --- */
+        .assignment-grid {
+             grid-template-columns: repeat(2, minmax(0, 1fr)); /* Default: 2 columns */
+        }
+        @media (min-width: 1024px) { /* lg */
+            .assignment-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+
+        /* --- Print Styles --- */
         @media print {
-            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes, .print-hidden, .setup-tools {
-                display: none !important;
-            }
-            @page {
-                size: A4 landscape;
-                margin: 0.5cm; 
-            }
+            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes, .print-hidden, .setup-tools { display: none !important; }
+            @page { size: A4 landscape; margin: 0.5cm; }
             body { zoom: 80%; }
-            .min-h-screen, #root, main, .container {
-                min-height: auto !important; padding: 0 !important; margin: 0 auto !important; width: 100% !important; max-width: none !important;
-            }
+            .min-h-screen, #root, main, .container { min-height: auto !important; padding: 0 !important; margin: 0 auto !important; width: 100% !important; max-width: none !important; }
             .shadow-md, .rounded-lg, .border { box-shadow: none !important; border: none !important; border-collapse: collapse !important; }
             .roster-section { break-inside: avoid; margin-bottom: 0.5cm !important; padding: 0 !important; }
             .overflow-x-auto { overflow: visible !important; }
             .min-w-full { width: 100% !important; table-layout: fixed; }
-            .min-w-full th:first-child, .min-w-full td:first-child {
-                width: 2.4in !important; max-width: 2.4in !important; min-width: 2.4in !important; white-space: normal !important; text-align: left !important; 
-            }
+            .min-w-full th:first-child, .min-w-full td:first-child { width: 2.4in !important; max-width: 2.4in !important; min-width: 2.4in !important; white-space: normal !important; text-align: left !important; }
             .min-w-full th:first-child, .min-w-full td:first-child span { font-size: 7.5pt !important; }
             .p-1 { padding: 0.1rem !important; }
             .text-xs, .text-sm { font-size: 8pt !important; line-height: 1.1 !important; }
             .sticky { position: static !important; }
-            input, select {
-                -webkit-appearance: none !important; -moz-appearance: none !important; appearance: none !important;
-                border: 0.5px solid #ccc !important; background-color: transparent !important; text-align: center !important; font-weight: bold; color: #000;
-                width: 100% !important; box-sizing: border-box !important;
-            }
-            .dropdown-permanent, .dropdown-buffer, .highlight-cell {
-                background-color: #E0F2FE !important; color: #000 !important; border: 0.5px solid #999 !important; background-image: none !important;
-            }
+            input, select { -webkit-appearance: none !important; -moz-appearance: none !important; appearance: none !important; border: 0.5px solid #ccc !important; background-color: transparent !important; text-align: center !important; font-weight: bold; color: #000; width: 100% !important; box-sizing: border-box !important; }
+            .dropdown-permanent, .dropdown-buffer, .highlight-cell { background-color: #E0F2FE !important; color: #000 !important; border: 0.5px solid #999 !important; background-image: none !important; }
             .bg-gray-100, .bg-gray-50 { background-color: #f7f7f7 !important; }
             .bg-white { background-color: white !important; }
             .highlight-cell { background-color: #FEF3C7 !important; }
             .vp-cell-fix { width: 17% !important; text-align: center !important; padding: 0px !important; margin: 0px !important; }
             .roster-section table td { padding: 0.1rem 0 !important; }
-            .roster-section table input.vp-cell-fix, .roster-section table select.vp-cell-fix {
-                margin: 0 !important; padding: 1px 1px !important; height: 14px !important; line-height: 1.2 !important; text-align: center !important; width: 100% !important; box-sizing: border-box !important;
-            }
+            .roster-section table input.vp-cell-fix, .roster-section table select.vp-cell-fix { margin: 0 !important; padding: 1px 1px !important; height: 14px !important; line-height: 1.2 !important; text-align: center !important; width: 100% !important; box-sizing: border-box !important; }
         }
     </style>
 </head>
@@ -166,12 +138,13 @@
         const FOYER_POSITIONS = ["XRAY-VISITOR", "FOYER-OE"];
         const VERTICAL_PROWLER_POSITION = "VERTICAL PROWLER";
         const SENTRY_POSITIONS = ["E1", "PATROL 1", "E3", "N1 (CNB)", "PATROL 2", "OE/ STANDBY", "PERIMETER PROWLER (1st Half)", "PERIMETER PROWLER (2nd Half)"];
+        
         const TIME_SLOTS = ["2000Hrs", "2100Hrs", "2200Hrs", "2300Hrs", "2400Hrs", "0100Hrs", "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"];
         const VERTICAL_PROWLER_SLOTS = ["20:30", "23:00", "00:30", "03:00", "04:30", "06:30"];
         const SENTRY_SEQUENCE_KEYS = ["E1", "OE", "P2", "N1", "E3", "P1"];
         const FOYER_ASSIGNMENT_KEYS = ["FOYER 1", "FOYER 2"];
         const SECURITY_ASSIGNMENT_KEYS = ["TEAM LEADER (I/C)", "SECTION I/C"];
-        const ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS].sort();
+        const ALL_ASSIGNMENT_KEYS = [...SENTRY_SEQUENCE_KEYS, ...FOYER_ASSIGNMENT_KEYS, ...SECURITY_ASSIGNMENT_KEYS];
         const UNASSIGNED_KEY = "Unassigned";
         const UNFILLED_SLOT = "---";
 
@@ -186,7 +159,6 @@
         const STAFF_POOL_COLLECTION = "staffPool_v7";
         const DAILY_ASSIGNMENTS_COLLECTION = "dailyAssignments_v7";
         const DAILY_ROSTER_COLLECTION = "dailyRosters_v7";
-        // Attendance now stores the schedule status for a given day
         const DAILY_ATTENDANCE_COLLECTION = "dailyAttendance_v7"; 
 
         // --- Helper: Get today's date ---
@@ -218,14 +190,14 @@
         
         function StaffProvider({ children, selectedDate }) {
             const [staffPool, setStaffPool] = useState([]); 
-            const [dailyAttendance, setDailyAttendance] = useState([]); // Array of IDs scheduled for the day
-            const [loading, setLoading] = useState(true);
+            const [dailyAttendance, setDailyAttendance] = useState([]); 
+            const [loadingState, setLoadingState] = useState({ staff: true, attendance: true });
             const [error, setError] = useState(null);
             
             // 1. Load Staff Pool
             useEffect(() => {
                 if (!db) return setError("Database connection failed during staff load.");
-                setLoading(true);
+                
                 const staffCollectionRef = collection(db, STAFF_POOL_COLLECTION);
                 const unsubscribe = onSnapshot(staffCollectionRef, (querySnapshot) => {
                     const pool = [];
@@ -236,9 +208,11 @@
                         });
                     });
                     setStaffPool(pool.sort((a, b) => a.id.localeCompare(b.id)));
+                    setLoadingState(prev => ({ ...prev, staff: false }));
                 }, (err) => {
                     console.error("Error fetching staff pool: ", err);
                     setError("Could not load staff pool.");
+                    setLoadingState(prev => ({ ...prev, staff: false }));
                 });
                 return () => unsubscribe();
             }, []);
@@ -246,14 +220,16 @@
             // 2. Load Daily Attendance for selected date
             useEffect(() => {
                 if (!db || !selectedDate) return;
+                setLoadingState(prev => ({ ...prev, attendance: true }));
+
                 const docRef = doc(db, DAILY_ATTENDANCE_COLLECTION, selectedDate);
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     const scheduledIds = docSnap.exists() ? docSnap.data().scheduledStaff || [] : [];
                     setDailyAttendance(scheduledIds);
-                    setLoading(false);
+                    setLoadingState(prev => ({ ...prev, attendance: false }));
                 }, (err) => {
                     console.error("Error fetching daily attendance: ", err);
-                    setLoading(false);
+                    setLoadingState(prev => ({ ...prev, attendance: false }));
                 });
                 return () => unsubscribe();
             }, [selectedDate]);
@@ -266,13 +242,14 @@
                 return map;
             }, [staffPool]);
             
-            // Filtered staff list: only staff marked as scheduled
+            // Wait for both to be loaded
+            const loading = loadingState.staff || loadingState.attendance;
+
             const scheduledStaff = useMemo(() => {
                 const scheduledSet = new Set(dailyAttendance);
-                // Only filter if attendance has been loaded (not in the initial loading state)
+                // Return all staff if loading hasn't finished (to prevent sudden empty lists)
                 if (loading) return staffPool; 
                 
-                // If attendance loaded and is empty, it means no one is scheduled
                 return staffPool.filter(staff => scheduledSet.has(staff.id));
             }, [staffPool, dailyAttendance, loading]);
 
@@ -300,6 +277,7 @@
             const [authError, setAuthError] = useState(null);
             const [selectedDate, setSelectedDate] = useState(getTodayDate());
 
+            // Authentication Handler
             useEffect(() => {
                 if (!auth) {
                     setAuthError("Authentication service is unavailable.");
@@ -338,8 +316,8 @@
                 return () => unsubscribe();
             }, []); 
 
-            if (authLoading) return <div className="p-8 text-center text-xl font-semibold">Connecting...</div>
-            if (authError) return <div className="p-8 text-center text-xl font-semibold text-red-600">{authError}</div>
+            if (authLoading) return <div className="p-8 text-center text-2xl font-semibold text-blue-600">Connecting to Server...</div>
+            if (authError) return <div className="p-8 text-center text-xl font-semibold text-red-600">Authentication Failed: {authError}</div>
             if (!userId) return <div className="p-8 text-center text-xl font-semibold">Authenticating...</div>
 
             return (
@@ -348,7 +326,7 @@
                         {/* Header: Hidden on Print */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v13.0)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v13.5)</h1>
                                 <div className="flex space-x-2 nav-buttons">
                                     <NavButton
                                         label="Daily Roster"
@@ -372,7 +350,7 @@
                         
                         {/* Footer: Hidden on Print */}
                         <footer className="text-center p-4 text-gray-500 text-sm">
-                            User ID: <span className="font-mono bg-gray-200 px-1 rounded">{userId}</span>
+                            User ID (Auth Token): <span className="font-mono bg-gray-200 px-1 rounded">{userId}</span>
                         </footer>
                     </div>
                 </StaffProvider>
@@ -393,13 +371,13 @@
                     {/* Section 1: Consolidated Staff Pool and Attendance Management */}
                     <ConsolidatedStaffManagement selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
                     
-                    {/* Section 2 (Original Section 3): Daily Assignment Setup */}
+                    {/* Section 2 (Compact Card List): Daily Assignment Setup */}
                     <DailySequenceAssignment selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
                 </div>
             );
         }
         
-        // --- NEW CONSOLIDATED COMPONENT ---
+        // --- CONSOLIDATED STAFF MANAGEMENT COMPONENT (Section 1) ---
         function ConsolidatedStaffManagement({ selectedDate, setSelectedDate }) {
             const { staffPool, dailyAttendance, loading: staffLoading } = useContext(StaffContext);
             const [newStaffId, setNewStaffId] = useState("");
@@ -416,7 +394,14 @@
             
             const isLocalDataDirty = useMemo(() => {
                 if (localDailyAttendance.length !== dailyAttendance.length) return true;
-                return localDailyAttendance.some(id => !dailyAttendance.includes(id));
+                const sortedLocal = [...localDailyAttendance].sort();
+                const sortedRemote = [...dailyAttendance].sort();
+                
+                for(let i = 0; i < sortedLocal.length; i++) {
+                    if (sortedLocal[i] !== sortedRemote[i]) return true;
+                }
+                
+                return false;
             }, [localDailyAttendance, dailyAttendance]);
 
             const scheduledSet = useMemo(() => new Set(localDailyAttendance), [localDailyAttendance]);
@@ -424,40 +409,46 @@
             // --- Pool Management Functions (Unchanged Logic) ---
             const handleAddStaff = async () => {
                 const id = newStaffId.trim();
-                if (id && !staffPool.find(s => s.id === id)) {
-                    try {
-                        const staffDocRef = doc(db, STAFF_POOL_COLLECTION, id);
-                        await setDoc(staffDocRef, { id: id, type: newStaffType });
-                        setNewStaffId("");
-                        // Automatically schedule new staff for the current day
-                        setLocalDailyAttendance(prev => [...prev, id].sort());
-                        setStatus("unsaved");
-                    } catch (err) {
-                        console.error("Error adding staff: ", err);
-                    }
+                if (!id) return;
+                if (staffPool.find(s => s.id === id)) {
+                    setError(`Staff ID ${id} already exists.`);
+                    setTimeout(() => setError(null), 3000);
+                    return;
+                }
+                
+                try {
+                    const staffDocRef = doc(db, STAFF_POOL_COLLECTION, id);
+                    await setDoc(staffDocRef, { id: id, type: newStaffType });
+                    setNewStaffId("");
+                    
+                    setLocalDailyAttendance(prev => [...prev, id].sort());
+                    setStatus("unsaved"); 
+                    setError(null);
+                } catch (err) {
+                    console.error("Error adding staff: ", err);
+                    setError(`Failed to add staff ID ${id}. Check permissions.`);
+                    setTimeout(() => setError(null), 3000);
                 }
             };
             
             const handleRemoveStaff = async (id) => {
                 if (window.confirm(`Are you sure you want to remove staff ID ${id} from the pool? This is permanent.`)) {
                     try {
-                        // 1. Remove from staff pool
                         const staffDocRef = doc(db, STAFF_POOL_COLLECTION, id);
                         await deleteDoc(staffDocRef);
                         
-                        // 2. Remove from local attendance
                         setLocalDailyAttendance(prev => prev.filter(staffId => staffId !== id));
                         setStatus("unsaved");
-                        
-                        // NOTE: Assignment cleanup (DailyAssignments) will happen when user clicks Save Assignments
-                        
+                        setError(null);
                     } catch (err) {
                         console.error("Error removing staff: ", err);
+                        setError(`Failed to remove staff ID ${id}. Check permissions.`);
+                        setTimeout(() => setError(null), 3000);
                     }
                 }
             };
 
-            // --- Attendance Management Functions (New Logic) ---
+            // --- Attendance Management Functions ---
             const handleAttendanceToggle = (staffId) => {
                 setStatus("unsaved");
                 let newAttendance;
@@ -485,21 +476,27 @@
                 setError(null);
                 try {
                     const docRef = doc(db, DAILY_ATTENDANCE_COLLECTION, selectedDate);
+                    
+                    const currentStaffIds = new Set(staffPool.map(s => s.id));
+                    const cleanedAttendance = localDailyAttendance
+                                            .filter(id => currentStaffIds.has(id))
+                                            .map(id => String(id)); 
+
                     await setDoc(docRef, { 
-                        scheduledStaff: localDailyAttendance,
+                        scheduledStaff: cleanedAttendance,
                         updatedAt: new Date().toISOString(),
                     });
+                    
+                    setLocalDailyAttendance(cleanedAttendance);
                     setStatus("saved");
-                    // Refetch hook will update dailyAttendance state
                     setTimeout(() => setStatus("idle"), 2000);
                 } catch (err) {
-                    console.error("Error saving daily attendance: ", err);
-                    setError("Failed to save daily attendance.");
+                    console.error("FATAL SAVE ERROR (Attendance): ", err);
+                    setError("Failed to save daily attendance. Check network/permissions.");
                     setStatus("error");
                 }
             };
             
-            // --- Render Logic ---
             const isLoading = staffLoading && staffPool.length === 0;
 
             return (
@@ -547,7 +544,7 @@
                         <div className="flex flex-col gap-2 p-4 rounded-lg border border-gray-200">
                              <div className="flex flex-wrap justify-between items-center mb-4 border-b pb-2">
                                 <span className="font-bold text-lg text-gray-800">
-                                    Scheduled: {localDailyAttendance.length} / {staffPool.length}
+                                    Total Staff: {staffPool.length} | Scheduled: {localDailyAttendance.length}
                                 </span>
                                 <div className="flex space-x-2 setup-tools">
                                      <button 
@@ -567,7 +564,8 @@
                                 </div>
                              </div>
                             
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                            {/* CRITICAL CHANGE: Applied Responsive Grid Class */}
+                            <div className="staff-pool-grid grid gap-3">
                                 {staffPool.map(staff => {
                                     const isScheduled = scheduledSet.has(staff.id);
                                     
@@ -580,7 +578,7 @@
                                                 : 'staff-card-unscheduled hover:bg-red-200 cursor-pointer'
                                             }`}
                                         >
-                                            {/* Top Corner Badge for Type */}
+                                            {/* Top Corner Badge for Type (text-xs) */}
                                             <span className={`absolute top-1 left-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                                                 staff.type === 'buffer' ? 'bg-purple-200 text-purple-800' : 'bg-blue-200 text-blue-800'
                                             }`}>
@@ -601,7 +599,8 @@
                                                 onClick={() => handleAttendanceToggle(staff.id)}
                                                 className="w-full text-center pt-4 pb-1"
                                             >
-                                                <span className="text-xl font-extrabold text-gray-900">{staff.id}</span>
+                                                {/* CRITICAL CHANGE: Reduced Staff ID font size from text-xl to text-lg */}
+                                                <span className="text-lg font-bold text-gray-900">{staff.id}</span>
                                                 <p className={`text-xs font-bold mt-1 ${
                                                     isScheduled ? 'text-emerald-700' : 'text-red-700'
                                                 }`}>
@@ -621,7 +620,7 @@
                         {isLocalDataDirty && <span className="text-yellow-700">Unsaved attendance changes.</span>}
                         <button
                             onClick={handleSaveAttendance}
-                            disabled={status === 'saving' || isLoading || !isLocalDataDirty}
+                            disabled={status === 'saving' || staffLoading || !isLocalDataDirty}
                             className="py-2 px-6 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
                         >
                             {status === 'saving' ? "Saving..." : "Save Daily Attendance"}
@@ -632,8 +631,8 @@
         }
 
         
-        // --- Sub-component for Daily Sequence Assignment (Original Section 3, now Section 2) ---
-        function DailySequenceAssignment({ selectedDate, setSelectedDate }) {
+        // --- Daily Assignment Component (Section 2 - Compact Grid) ---
+        function DailySequenceAssignment({ selectedDate }) {
             const { scheduledStaff: allStaff, staffTypeMap, loading: staffLoading, dailyAttendance } = useContext(StaffContext); 
             const [sequenceMap, setSequenceMap] = useState({});
             const [locationBufferMap, setLocationBufferMap] = useState({});
@@ -641,7 +640,7 @@
             const [status, setStatus] = useState("idle");
             const [error, setError] = useState(null);
 
-            const allAssignmentKeys = useMemo(() => ASSIGNMENT_KEYS, []);
+            const allAssignmentKeys = useMemo(() => ALL_ASSIGNMENT_KEYS, []);
             
             const overrideLocations = useMemo(() => [
                 "E3", "N1 (CNB)", "PATROL 1", "PATROL 2", VERTICAL_PROWLER_POSITION
@@ -649,6 +648,7 @@
             
             const bufferStaff = useMemo(() => allStaff.filter(s => s.type === 'buffer'), [allStaff]);
 
+            // --- 1. Load Assignments ---
             useEffect(() => {
                 if (!selectedDate || !db) return;
                 setLoading(true);
@@ -662,12 +662,13 @@
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         const loadedMap = data.sequenceMap || {};
+                        const scheduledSet = new Set(dailyAttendance);
+                        
                         Object.keys(loadedMap).forEach(key => {
                             if (allAssignmentKeys.includes(key)) { 
                                 let staffIds = Array.isArray(loadedMap[key]) ? loadedMap[key] : (loadedMap[key] ? [loadedMap[key]] : []);
-                                // CRITICAL: Filter loaded assignments to only include staff currently marked as scheduled
-                                const scheduledStaffIds = new Set(dailyAttendance);
-                                defaultMap[key] = staffIds.filter(id => scheduledStaffIds.has(id));
+                                // Filter assignments by current scheduled staff
+                                defaultMap[key] = staffIds.filter(id => scheduledSet.has(id));
                             }
                         });
                         setSequenceMap(defaultMap);
@@ -686,6 +687,7 @@
                 return () => unsubscribe();
             }, [selectedDate, allAssignmentKeys, dailyAttendance]);
 
+            // --- 2. Assignment Logic ---
             const staffToSequenceMap = useMemo(() => {
                 const map = {};
                 for (const key of allAssignmentKeys) {
@@ -704,13 +706,15 @@
                 return map;
             }, [sequenceMap, allAssignmentKeys]);
 
+
             const handleSequenceChange = (keyToAssign, staffId) => {
                 setStatus("unsaved");
                 const newMap = { ...sequenceMap };
                 const staffType = staffTypeMap.get(staffId);
                 
                 if (staffType !== 'buffer') {
-                     allAssignmentKeys.forEach(key => {
+                    // Remove from any other key first (for permanent staff)
+                     ALL_ASSIGNMENT_KEYS.forEach(key => {
                          if (newMap[key] && newMap[key].includes(staffId)) {
                              newMap[key] = newMap[key].filter(id => id !== staffId);
                          }
@@ -719,6 +723,7 @@
 
                 const currentIdsInSlot = newMap[keyToAssign] || [];
                 
+                // Add to new slot if not already there
                 if (!currentIdsInSlot.includes(staffId)) {
                     newMap[keyToAssign] = [...currentIdsInSlot, staffId];
                 }
@@ -726,6 +731,20 @@
                 setSequenceMap(newMap);
             };
             
+            const handleUnassign = (staffId) => {
+                setStatus("unsaved");
+                const newMap = { ...sequenceMap };
+                
+                // Completely remove staffId from ALL slots
+                ALL_ASSIGNMENT_KEYS.forEach(key => {
+                     if (newMap[key] && newMap[key].includes(staffId)) {
+                         newMap[key] = newMap[key].filter(id => id !== staffId);
+                     }
+                });
+                
+                setSequenceMap(newMap);
+            };
+
             const handleLocationBufferChange = (location, staffId) => {
                 setStatus("unsaved");
                 const newMap = { ...locationBufferMap };
@@ -737,21 +756,8 @@
                 setLocationBufferMap(newMap);
             };
 
-            const handleUnassign = (staffId) => {
-                setStatus("unsaved");
-                const newMap = { ...sequenceMap };
-                
-                allAssignmentKeys.forEach(key => {
-                     if (newMap[key] && newMap[key].includes(staffId)) {
-                         newMap[key] = newMap[key].filter(id => id !== staffId);
-                     }
-                });
-                
-                setSequenceMap(newMap);
-            };
-            
             const handleClearAll = () => {
-                if (window.confirm("Are you sure you want to CLEAR ALL assignments for this date? \n\nThis will remove all current selections. You will need to click 'Save' to persist this change.")) {
+                if (window.confirm("Are you sure you want to CLEAR ALL assignments for this date?")) {
                     const emptyMap = {};
                     allAssignmentKeys.forEach(key => emptyMap[key] = []);
                     setSequenceMap(emptyMap);
@@ -767,16 +773,16 @@
                 try {
                     const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
                     
-                    // Filter assignments again before saving to ensure only scheduled staff are in the database
-                    const scheduledStaffIds = new Set(allStaff.map(s => s.id));
+                    // Final clean before saving (only scheduled staff remain)
+                    const scheduledSet = new Set(allStaff.map(s => s.id));
                     const cleanedSequenceMap = {};
                     Object.entries(sequenceMap).forEach(([key, staffIds]) => {
-                        cleanedSequenceMap[key] = staffIds.filter(id => scheduledStaffIds.has(id));
+                        cleanedSequenceMap[key] = staffIds.filter(id => scheduledSet.has(id));
                     });
                     
                     const cleanedLocationBufferMap = {};
                     Object.entries(locationBufferMap).forEach(([key, staffId]) => {
-                        if (scheduledStaffIds.has(staffId)) {
+                        if (scheduledSet.has(staffId)) {
                              cleanedLocationBufferMap[key] = staffId;
                         }
                     });
@@ -793,112 +799,117 @@
                     setTimeout(() => setStatus("idle"), 2000);
                 } catch (err) {
                     console.error("Error saving daily setup: ", err);
-                    setError("Failed to save daily setup.");
+                    setError("Failed to save daily assignments.");
                     setStatus("error");
                 }
             };
             
             const isLoading = staffLoading || loading;
             const isDirty = status === 'unsaved';
+            
+            const AssignmentDropdown = ({ staffId }) => {
+                const assignedSequence = staffToSequenceMap[staffId] || "";
+                const staffType = staffTypeMap.get(staffId);
+                                
+                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
+                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
+                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
+                const isMultiple = assignedSequence.includes(',');
+
+                let colorClass = 'bg-white';
+                if (staffType === 'buffer' && assignedSequence) {
+                    colorClass = 'bg-purple-100 border-purple-300';
+                }
+                else if (isSentryAssignment) colorClass = 'bg-blue-100 border-blue-300';
+                else if (isFoyerAssignment) colorClass = 'bg-green-100 border-green-300';
+                else if (isSecurityAssignment) colorClass = 'bg-orange-100 border-orange-300';
+                else colorClass = 'bg-gray-50 border-gray-300';
+
+                return (
+                    <div 
+                        className={`p-2 border rounded-lg flex items-center justify-between transition-all ${colorClass}`}
+                    >
+                        <div className="flex flex-col items-start gap-0">
+                            <span className="text-base font-bold text-gray-900">{staffId}</span>
+                            {staffType === 'buffer' && (
+                                <span className="text-xs font-semibold px-1 py-0.5 rounded-full bg-purple-200 text-purple-800">
+                                    {staffType.toUpperCase()}
+                                </span>
+                            )}
+                        </div>
+                        <select
+                            value={assignedSequence}
+                            onChange={(e) => {
+                                const newKey = e.target.value;
+                                if (newKey === "") {
+                                    handleUnassign(staffId);
+                                } else {
+                                    handleSequenceChange(newKey, staffId);
+                                }
+                            }}
+                            className="p-1 border border-gray-400 rounded-md shadow-sm w-36 text-xs truncate bg-white"
+                        >
+                            <option value="">{UNASSIGNED_KEY}</option>
+                            
+                            {isMultiple && (
+                                <option value={assignedSequence} disabled>{assignedSequence} (Multiple)</option>
+                            )}
+
+                            {ALL_ASSIGNMENT_KEYS.sort().map(key => {
+                                const staffIdsInSlot = sequenceMap[key] || [];
+                                const isThisStaffInSlot = staffIdsInSlot.includes(staffId);
+                                
+                                let isDisabled = false;
+                                const currentScheduledStaffInSlot = staffIdsInSlot.filter(id => allStaff.some(s => s.id === id));
+                                
+                                if (!isThisStaffInSlot && currentScheduledStaffInSlot.length > 0) {
+                                    const typesInSlot = currentScheduledStaffInSlot.map(id => staffTypeMap.get(id));
+                                    
+                                    if (staffType === 'permanent' || !staffType) {
+                                        // Permanent staff cannot take occupied slot
+                                        isDisabled = true;
+                                    } else if (staffType === 'buffer') {
+                                        // Buffer can only share with a permanent
+                                        if (typesInSlot.includes('buffer') || currentScheduledStaffInSlot.length >= 2) {
+                                            isDisabled = true;
+                                        }
+                                    }
+                                }
+                                
+                                return (
+                                    <option key={key} value={key} disabled={isDisabled} className="truncate">
+                                        {key} {currentScheduledStaffInSlot.length > 0 ? `(taken)` : ""}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                );
+            };
 
             return (
                 <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
-                    <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Assignment Setup</h2>
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Assignment Setup (Compact)</h2>
                     
                     {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
                     
                     <p className="text-gray-600 mb-4 text-sm font-bold bg-green-50 p-3 rounded-md border border-green-300">
-                        Showing only **{allStaff.length}** staff members who are **SCHEDULED** for {selectedDate} (managed in Section 1).
+                        Showing only **{allStaff.length}** staff members who are **SCHEDULED** for {selectedDate}. Select their primary assignment.
                     </p>
                     
                     {isLoading && <p>Loading...</p>}
+                    
+                    {/* CRITICAL CHANGE: Responsive Grid */}
                     {!isLoading && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="assignment-grid grid gap-3">
                             {allStaff.length === 0 && <p className="text-gray-500 col-span-full">No staff are scheduled for this date (Check Section 1).</p>}
-                            {allStaff.map(staff => {
-                                const assignedSequence = staffToSequenceMap[staff.id] || "";
-                                const staffType = staff.type;
-                                
-                                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
-                                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
-                                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
-                                
-                                let colorClass = 'bg-white';
-                                if (staffType === 'buffer' && assignedSequence) {
-                                    colorClass = 'bg-purple-100 border-purple-300';
-                                }
-                                else if (isSentryAssignment) colorClass = 'bg-blue-100 border-blue-300';
-                                else if (isFoyerAssignment) colorClass = 'bg-green-100 border-green-300';
-                                else if (isSecurityAssignment) colorClass = 'bg-orange-100 border-orange-300';
-
-                                const isMultiple = assignedSequence.includes(',');
-
-                                return (
-                                    <div 
-                                        key={staff.id}
-                                        className={`p-4 border rounded-lg flex items-center justify-between transition-all ${colorClass}`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-lg font-medium text-gray-900">{staff.id}</span>
-                                            {staff.type === 'buffer' && (
-                                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
-                                                    {staff.type}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <select
-                                            value={assignedSequence}
-                                            onChange={(e) => {
-                                                const newKey = e.target.value;
-                                                if (newKey === "") {
-                                                    handleUnassign(staff.id);
-                                                } else {
-                                                    handleSequenceChange(newKey, staff.id);
-                                                }
-                                            }}
-                                            className="p-2 border border-gray-300 rounded-md shadow-sm w-40 truncate"
-                                        >
-                                            <option value="">{UNASSIGNED_KEY}</option>
-                                            
-                                            {isMultiple && (
-                                                <option value={assignedSequence} disabled>{assignedSequence} (Multiple)</option>
-                                            )}
-
-                                            {allAssignmentKeys.map(key => {
-                                                const staffIdsInSlot = sequenceMap[key] || [];
-                                                const isThisStaffInSlot = staffIdsInSlot.includes(staff.id);
-                                                
-                                                let isDisabled = false;
-                                                const currentScheduledStaffInSlot = staffIdsInSlot.filter(id => allStaff.some(s => s.id === id));
-                                                
-                                                if (!isThisStaffInSlot && currentScheduledStaffInSlot.length > 0) {
-                                                    const typesInSlot = currentScheduledStaffInSlot.map(id => staffTypeMap.get(id));
-                                                    
-                                                    if (staff.type === 'permanent' || !staff.type) {
-                                                        isDisabled = true;
-                                                    } else if (staff.type === 'buffer') {
-                                                        if (typesInSlot.includes('buffer')) {
-                                                            isDisabled = true;
-                                                        }
-                                                        if (currentScheduledStaffInSlot.length >= 2) {
-                                                             isDisabled = true;
-                                                        }
-                                                    }
-                                                }
-                                                
-                                                return (
-                                                    <option key={key} value={key} disabled={isDisabled} className="truncate">
-                                                        {key} {currentScheduledStaffInSlot.length > 0 ? `(taken by ${currentScheduledStaffInSlot.join(', ')})` : ""}
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
-                                    </div>
-                                );
-                            })}
+                            {allStaff.map(staff => (
+                                <AssignmentDropdown key={staff.id} staffId={staff.id} />
+                            ))}
                         </div>
                     )}
                     
+                    {/* --- Buffer Overrides (Section 3) --- */}
                     <div className="mt-8 border-t pt-6">
                         <h3 className="text-lg font-bold mb-4 text-gray-800">3. Buffer Location Override (Whole Shift)</h3>
                         <p className="text-gray-600 mb-4 text-sm">
@@ -923,6 +934,7 @@
                         </div>
                     </div>
                     
+                    {/* --- Save Controls --- */}
                     <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4 action-buttons">
                         <button
                             onClick={handleClearAll}
@@ -1246,7 +1258,7 @@
                     setLoading(false);
                 } catch (err) {
                     console.error("Error saving changes: ", err);
-                    setError("Failed to save changes.");
+                    setError("Failed to save changes. Check network/permissions.");
                     setLoading(false);
                 }
             };
