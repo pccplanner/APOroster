@@ -142,23 +142,20 @@
                 table-layout: fixed; /* Fix table layout for consistent column width */
             }
             
-            /* ******* FIX: Widen Location Column for Print ******* */
+            /* Location Column Fix */
             .min-w-full th:first-child,
             .min-w-full td:first-child {
-                /* Give generous fixed width (~2.4 inches / 6cm) */
                 width: 2.4in !important; 
                 max-width: 2.4in !important;
                 min-width: 2.4in !important;
-                white-space: normal !important; /* Allow text to wrap if necessary */
-                text-align: left !important; /* Align content left for better reading */
+                white-space: normal !important; 
+                text-align: left !important; 
             }
 
-            /* Ensure the text is small enough in the location column */
             .min-w-full th:first-child,
             .min-w-full td:first-child span {
                  font-size: 7.5pt !important;
             }
-            /* ******* END FIX ******* */
 
             /* 5. Compact Table Cells */
             .p-1 {
@@ -174,7 +171,7 @@
                 position: static !important;
             }
 
-            /* 7. Ensure text inputs/selects are rendered as plain text */
+            /* 7. Ensure text inputs/selects are rendered as full text - FIX FOR MISSING IDs */
             input, select {
                 -webkit-appearance: none !important;
                 -moz-appearance: none !important;
@@ -184,11 +181,13 @@
                 text-align: center !important;
                 font-weight: bold;
                 color: #000;
+                /* CRITICAL FIX: Force elements to take 100% of cell width */
+                width: 100% !important; 
+                box-sizing: border-box !important;
             }
 
             /* 8. Fix background colors for printed output */
             .dropdown-permanent, .dropdown-buffer, .highlight-cell {
-                /* Use solid colors that print well */
                 background-color: #E0F2FE !important; /* blue-100 */
                 color: #000 !important;
                 border: 0.5px solid #999 !important;
