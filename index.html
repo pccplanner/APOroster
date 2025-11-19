@@ -161,8 +161,6 @@
             .p-1 {
                 padding: 0.1rem !important;
             }
-            
-            /* General text size for all table content */
             .text-xs, .text-sm {
                 font-size: 8pt !important;
                 line-height: 1.1 !important;
@@ -173,7 +171,7 @@
                 position: static !important;
             }
 
-            /* 7. Ensure text inputs/selects are rendered as full text - CRITICAL FIX FOR MISSING IDs */
+            /* 7. Ensure text inputs/selects are rendered as full text - FIX FOR MISSING IDs */
             input, select {
                 -webkit-appearance: none !important;
                 -moz-appearance: none !important;
@@ -183,13 +181,9 @@
                 text-align: center !important;
                 font-weight: bold;
                 color: #000;
-                /* Force full width of the cell */
+                /* CRITICAL FIX: Force elements to take 100% of cell width */
                 width: 100% !important; 
                 box-sizing: border-box !important;
-                /* REDUCE FONT AND ENSURE VISIBILITY */
-                font-size: 7pt !important; /* Reduce font size further */
-                overflow: visible !important; /* Allow content to overflow if needed */
-                white-space: nowrap !important; /* Prevent IDs from wrapping */
             }
 
             /* 8. Fix background colors for printed output */
@@ -211,32 +205,33 @@
                 background-color: #FEF3C7 !important; /* yellow-100 */
             }
             
+            
             /* --- VERTICAL PROWLER SPECIFIC FIXES (Alignment and Clipping) --- */
-            /* FIX 1: Ensure VP header and cells share the same width and tight padding */
+            /* FIX 1: Increase content cell width and remove vertical spacing */
             .vp-cell-fix {
-                width: 17% !important;              /* Same width for header + body so columns align */
+                width: 17% !important; /* Slightly increased from 16.66% to prevent clipping */
                 text-align: center !important;
-                padding: 0 !important;              /* Remove vertical space */
-                margin: 0 !important;
+                padding: 0px !important; /* Remove vertical space */
+                margin: 0px !important; /* Remove vertical space */
             }
 
             .roster-section table td {
-                padding: 0.1rem 0 !important;       /* General cell padding adjustment */
+                padding: 0.1rem 0 !important; /* General cell padding adjustment */
             }
 
-            /* FIX 2: Directly control the VP inputs/selects so IDs are fully visible in print */
+            /* FIX 2: Apply directly to the VP inputs/selects so IDs are fully visible */
             .roster-section table input.vp-cell-fix,
             .roster-section table select.vp-cell-fix {
                 margin: 0 !important;
                 padding: 1px 1px !important;        /* Small padding so text isn’t clipped */
                 height: 14px !important;            /* Explicit height for full digits */
                 line-height: 1.2 !important;        /* Prevent top/bottom clipping */
-                text-align: center !important;
+                text-align: center !important;      /* Keep ID centered under the time */
                 width: 100% !important;
                 box-sizing: border-box !important;
             }
-            /* --- END VP FIXES --- */
-            
+
+
         }
         /* --- END PRINT STYLES --- */
     </style>
@@ -512,43 +507,49 @@
             };
 
             return (
-                <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
-                    <h2 className="text-xl font-bold mb-4 text-gray-800">1. Manage Staff Pool</h2>
-                    {staffError && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{staffError}</div>}
-                    
-                    <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                        <input
-                            type="text"
-                            value={newStaffId}
-                            onChange={(e) => setNewStaffId(e.target.value)}
-                            className="flex-grow p-2 border border-gray-300 rounded-md shadow-sm"
-                            placeholder="Enter new Staff ID"
-                        />
-                        <select 
-                            value={newStaffType}
-                            onChange={(e) => setNewStaffType(e.target.value)}
-                            className="p-2 border border-gray-300 rounded-md shadow-sm bg-white"
-                        >
-                            <option value="permanent">Permanent</option>
-                            <option value="buffer">Buffer</option>
-                        </select>
-                        <button onClick={handleAddStaff} className="py-2 px-4 bg-green-600 text-white rounded-md shadow-md font-medium hover:bg-green-700">Add Staff</button>
+                <div className="space-y-6">
+                    {/* Section 1: Manage Staff Pool */}
+                    <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800">1. Manage Staff Pool</h2>
+                        {staffError && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{staffError}</div>}
+                        
+                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                            <input
+                                type="text"
+                                value={newStaffId}
+                                onChange={(e) => setNewStaffId(e.target.value)}
+                                className="flex-grow p-2 border border-gray-300 rounded-md shadow-sm"
+                                placeholder="Enter new Staff ID"
+                            />
+                            <select 
+                                value={newStaffType}
+                                onChange={(e) => setNewStaffType(e.target.value)}
+                                className="p-2 border border-gray-300 rounded-md shadow-sm bg-white"
+                            >
+                                <option value="permanent">Permanent</option>
+                                <option value="buffer">Buffer</option>
+                            </select>
+                            <button onClick={handleAddStaff} className="py-2 px-4 bg-green-600 text-white rounded-md shadow-md font-medium hover:bg-green-700">Add Staff</button>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2">
+                            {staffLoading && <p>Loading Staff...</p>}
+                            {staffPool.map(staff => (
+                                <div key={staff.id} className="flex items-center p-2 bg-gray-100 rounded-md border gap-2">
+                                    <span className="font-medium text-gray-900">{staff.id}</span>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                        staff.type === 'buffer' ? 'bg-purple-200 text-purple-800' : 'bg-blue-200 text-blue-800'
+                                    }`}>
+                                        {staff.type}
+                                    </span>
+                                    <button onClick={() => handleRemoveStaff(staff.id)} className="ml-1 text-red-500 hover:text-red-700 font-bold">X</button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                     
-                    <div className="flex flex-wrap gap-2">
-                        {staffLoading && <p>Loading Staff...</p>}
-                        {staffPool.map(staff => (
-                            <div key={staff.id} className="flex items-center p-2 bg-gray-100 rounded-md border gap-2">
-                                <span className="font-medium text-gray-900">{staff.id}</span>
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                    staff.type === 'buffer' ? 'bg-purple-200 text-purple-800' : 'bg-blue-200 text-blue-800'
-                                }`}>
-                                    {staff.type}
-                                </span>
-                                <button onClick={() => handleRemoveStaff(staff.id)} className="ml-1 text-red-500 hover:text-red-700 font-bold">X</button>
-                            </div>
-                        ))}
-                    </div>
+                    {/* Section 2: Daily Setup */}
+                    <DailySequenceAssignment selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
                 </div>
             );
         }
@@ -1806,5 +1807,4 @@
     </script>
 </body>
 </html>
-
 
