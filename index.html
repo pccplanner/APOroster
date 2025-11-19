@@ -101,7 +101,7 @@
         /* --- PRINT STYLES (CRITICAL FOR USER REQUEST) --- */
         @media print {
             /* 1. Hide non-essential UI */
-            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes {
+            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes, .print-hidden {
                 display: none !important;
             }
             
@@ -205,6 +205,13 @@
             .highlight-cell {
                 background-color: #FEF3C7 !important; /* yellow-100 */
             }
+            
+            /* Vertical Prowler specific cell width/alignment fix */
+            .vp-cell-fix {
+                width: 16.66% !important; /* 100% / 6 time slots */
+                text-align: center !important;
+            }
+            
         }
         /* --- END PRINT STYLES --- */
     </style>
@@ -246,8 +253,9 @@
             "0200Hrs", "0300Hrs", "0400Hrs", "0500Hrs", "0600Hrs", "0700Hrs"
         ];
         
+        // NOTE: These are the fixed time slots for the VP table (6 columns total)
         const VERTICAL_PROWLER_SLOTS = [
-            "20:30", "23:00", "00:30", "03:00", "04:30", "06:30" // Corrected to 6 slots for 12 hours
+            "20:30", "23:00", "00:30", "03:00", "04:30", "06:30" 
         ];
         
         // --- ASSIGNMENT KEYS ---
@@ -690,168 +698,166 @@
             const isLoading = staffLoading || loading;
 
             return (
-                <div className="space-y-6">
-                    {/* Section 1: Manage Staff Pool (Omitted for brevity in this response) */}
+                <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Roster Setup</h2>
                     
-                    {/* Section 2: Daily Setup */}
-                    <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
-                        <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Roster Setup</h2>
-                        
-                        <div className="mb-6 date-selector">
-                            <label htmlFor="roster-date" className="font-medium text-gray-700 text-lg">Select Date:</label>
-                            <input
-                                type="date"
-                                id="roster-date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="border-gray-300 rounded-md shadow-sm p-2 text-lg ml-2"
-                            />
-                        </div>
-                        
-                        {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
-                        
-                        <p className="text-gray-600 mb-4">
-                            Assign a role to each staff member.
-                            <span className="font-medium text-blue-600">Sentry</span>, 
-                            <span className="font-medium text-green-600"> Foyer</span>,
-                            and <span className="font-medium text-orange-600"> Security Control</span>
-                            roles are now used for automation.
-                        </p>
-                        
-                        {isLoading && <p>Loading...</p>}
-                        {!isLoading && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {/* Staff assignment dropdowns (Omitted for brevity in this response) */}
-                                {allStaff.length === 0 && <p className="text-gray-500 col-span-full">No staff in pool.</p>}
-                                {allStaff.map(staff => {
-                                    const assignedSequence = staffToSequenceMap[staff.id] || "";
-                                    const staffType = staff.type;
-                                    
-                                    const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
-                                    const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
-                                    const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
-                                    
-                                    let colorClass = 'bg-white';
-                                    if (staffType === 'buffer' && assignedSequence) {
-                                        colorClass = 'bg-purple-100 border-purple-300';
-                                    }
-                                    else if (isSentryAssignment) colorClass = 'bg-blue-100 border-blue-300';
-                                    else if (isFoyerAssignment) colorClass = 'bg-green-100 border-green-300';
-                                    else if (isSecurityAssignment) colorClass = 'bg-orange-100 border-orange-300';
+                    <div className="mb-6 date-selector">
+                        <label htmlFor="roster-date" className="font-medium text-gray-700 text-lg">Select Date:</label>
+                        <input
+                            type="date"
+                            id="roster-date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="border-gray-300 rounded-md shadow-sm p-2 text-lg ml-2"
+                        />
+                    </div>
+                    
+                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4">{error}</div>}
+                    
+                    <p className="text-gray-600 mb-4">
+                        Assign a role to each staff member.
+                        <span className="font-medium text-blue-600">Sentry</span>, 
+                        <span className="font-medium text-green-600"> Foyer</span>,
+                        and <span className="font-medium text-orange-600"> Security Control</span>
+                        roles are now used for automation.
+                    </p>
+                    
+                    {isLoading && <p>Loading...</p>}
+                    {!isLoading && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {allStaff.length === 0 && <p className="text-gray-500 col-span-full">No staff in pool.</p>}
+                            {allStaff.map(staff => {
+                                const assignedSequence = staffToSequenceMap[staff.id] || "";
+                                const staffType = staff.type;
+                                
+                                // UPDATED: Loose matching for partial assignment strings (e.g., "E1, E3")
+                                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
+                                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
+                                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
+                                
+                                let colorClass = 'bg-white';
+                                if (staffType === 'buffer' && assignedSequence) {
+                                    colorClass = 'bg-purple-100 border-purple-300';
+                                }
+                                else if (isSentryAssignment) colorClass = 'bg-blue-100 border-blue-300';
+                                else if (isFoyerAssignment) colorClass = 'bg-green-100 border-green-300';
+                                else if (isSecurityAssignment) colorClass = 'bg-orange-100 border-orange-300';
 
-                                    const isMultiple = assignedSequence.includes(',');
+                                // Check if multiple roles
+                                const isMultiple = assignedSequence.includes(',');
 
-                                    return (
-                                        <div 
-                                            key={staff.id}
-                                            className={`p-4 border rounded-lg flex items-center justify-between transition-all ${colorClass}`}
+                                return (
+                                    <div 
+                                        key={staff.id}
+                                        className={`p-4 border rounded-lg flex items-center justify-between transition-all ${colorClass}`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-medium text-gray-900">{staff.id}</span>
+                                            {staff.type === 'buffer' && (
+                                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
+                                                    {staff.type}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <select
+                                            value={assignedSequence}
+                                            onChange={(e) => {
+                                                const newKey = e.target.value;
+                                                if (newKey === "") {
+                                                    handleUnassign(staff.id);
+                                                } else {
+                                                    handleSequenceChange(newKey, staff.id);
+                                                }
+                                            }}
+                                            className="p-2 border border-gray-300 rounded-md shadow-sm w-40 truncate"
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-lg font-medium text-gray-900">{staff.id}</span>
-                                                {staff.type === 'buffer' && (
-                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
-                                                        {staff.type}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <select
-                                                value={assignedSequence}
-                                                onChange={(e) => {
-                                                    const newKey = e.target.value;
-                                                    if (newKey === "") {
-                                                        handleUnassign(staff.id);
-                                                    } else {
-                                                        handleSequenceChange(newKey, staff.id);
-                                                    }
-                                                }}
-                                                className="p-2 border border-gray-300 rounded-md shadow-sm w-40 truncate"
-                                            >
-                                                <option value="">{UNASSIGNED_KEY}</option>
-                                                
-                                                {isMultiple && (
-                                                    <option value={assignedSequence} disabled>{assignedSequence} (Multiple)</option>
-                                                )}
+                                            <option value="">{UNASSIGNED_KEY}</option>
+                                            
+                                            {/* UPDATED: Dynamic option for multi-assigned buffers */}
+                                            {isMultiple && (
+                                                <option value={assignedSequence} disabled>{assignedSequence} (Multiple)</option>
+                                            )}
 
-                                                {allAssignmentKeys.map(key => {
-                                                    const staffIdsInSlot = sequenceMap[key] || [];
-                                                    const isThisStaffInSlot = staffIdsInSlot.includes(staff.id);
+                                            {allAssignmentKeys.map(key => {
+                                                const staffIdsInSlot = sequenceMap[key] || [];
+                                                const isThisStaffInSlot = staffIdsInSlot.includes(staff.id);
+                                                
+                                                let isDisabled = false;
+                                                if (!isThisStaffInSlot && staffIdsInSlot.length > 0) {
+                                                    const typesInSlot = staffIdsInSlot.map(id => staffTypeMap.get(id));
                                                     
-                                                    let isDisabled = false;
-                                                    if (!isThisStaffInSlot && staffIdsInSlot.length > 0) {
-                                                        const typesInSlot = staffIdsInSlot.map(id => staffTypeMap.get(id));
-                                                        
-                                                        if (staff.type === 'permanent' || !staff.type) {
+                                                    if (staff.type === 'permanent' || !staff.type) {
+                                                        isDisabled = true;
+                                                    } else if (staff.type === 'buffer') {
+                                                        // Block if slot is full of buffers OR full (e.g. 2 people already)
+                                                        if (typesInSlot.includes('buffer')) {
                                                             isDisabled = true;
-                                                        } else if (staff.type === 'buffer') {
-                                                            if (typesInSlot.includes('buffer')) {
-                                                                isDisabled = true;
-                                                            }
-                                                            if (staffIdsInSlot.length >= 2) {
-                                                                 isDisabled = true;
-                                                            }
+                                                        }
+                                                        if (staffIdsInSlot.length >= 2) {
+                                                             isDisabled = true;
                                                         }
                                                     }
-                                                    
-                                                    return (
-                                                        <option key={key} value={key} disabled={isDisabled} className="truncate">
-                                                            {key} {staffIdsInSlot.length > 0 ? `(taken by ${staffIdsInSlot.join(', ')})` : ""}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        
-                        {/* --- NEW: Section 3 Location Overrides (Omitted for brevity in this response) --- */}
-                        <div className="mt-8 border-t pt-6">
-                            <h3 className="text-lg font-bold mb-4 text-gray-800">3. Buffer Location Override (Whole Shift)</h3>
-                            <p className="text-gray-600 mb-4 text-sm">
-                                Select a Buffer staff to cover an entire location (Row) for the whole night (20:00 - 07:00). 
-                                Only E3, N1, Patrol 1, Patrol 2, and Vertical Prowler are available for this function.
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
-                                 {overrideLocations.map(loc => (
-                                     <div key={loc} className="flex flex-col gap-1">
-                                         <label className="text-xs font-bold text-gray-600 uppercase">{loc}</label>
-                                         <select
-                                            value={locationBufferMap[loc] || ""}
-                                            onChange={(e) => handleLocationBufferChange(loc, e.target.value)}
-                                            className={`p-2 border border-gray-300 rounded-md text-sm ${locationBufferMap[loc] ? 'bg-purple-100 border-purple-400 text-purple-900 font-bold' : 'bg-white'}`}
-                                         >
-                                             <option value="">-- No Buffer Override --</option>
-                                             {bufferStaff.map(b => (
-                                                 <option key={b.id} value={b.id}>{b.id}</option>
-                                             ))}
-                                         </select>
-                                     </div>
-                                 ))}
-                            </div>
+                                                }
+                                                
+                                                return (
+                                                    <option key={key} value={key} disabled={isDisabled} className="truncate">
+                                                        {key} {staffIdsInSlot.length > 0 ? `(taken by ${staffIdsInSlot.join(', ')})` : ""}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                );
+                            })}
                         </div>
-                        
-                        <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4 action-buttons">
-                            {/* Clear All Button */}
-                            <button
-                                onClick={handleClearAll}
-                                disabled={status === 'saving' || isLoading}
-                                className="py-2 px-4 bg-red-500 text-white rounded-md shadow-md font-medium hover:bg-red-600 disabled:bg-gray-400"
-                            >
-                                Clear All
-                            </button>
+                    )}
+                    
+                    {/* --- NEW: Section 3 Location Overrides --- */}
+                    <div className="mt-8 border-t pt-6">
+                        <h3 className="text-lg font-bold mb-4 text-gray-800">3. Buffer Location Override (Whole Shift)</h3>
+                        <p className="text-gray-600 mb-4 text-sm">
+                            Select a Buffer staff to cover an entire location (Row) for the whole night (20:00 - 07:00). 
+                            Only E3, N1, Patrol 1, Patrol 2, and Vertical Prowler are available for this function.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
+                             {overrideLocations.map(loc => (
+                                 <div key={loc} className="flex flex-col gap-1">
+                                     <label className="text-xs font-bold text-gray-600 uppercase">{loc}</label>
+                                     <select
+                                        value={locationBufferMap[loc] || ""}
+                                        onChange={(e) => handleLocationBufferChange(loc, e.target.value)}
+                                        className={`p-2 border border-gray-300 rounded-md text-sm ${locationBufferMap[loc] ? 'bg-purple-100 border-purple-400 text-purple-900 font-bold' : 'bg-white'}`}
+                                     >
+                                         <option value="">-- No Buffer Override --</option>
+                                         {bufferStaff.map(b => (
+                                             <option key={b.id} value={b.id}>{b.id}</option>
+                                         ))}
+                                     </select>
+                                 </div>
+                             ))}
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4 action-buttons">
+                        {/* Clear All Button */}
+                        <button
+                            onClick={handleClearAll}
+                            disabled={status === 'saving' || isLoading}
+                            className="py-2 px-4 bg-red-500 text-white rounded-md shadow-md font-medium hover:bg-red-600 disabled:bg-gray-400"
+                        >
+                            Clear All
+                        </button>
 
-                            <div className="flex items-center gap-4">
-                                {status === 'saved' && <span className="text-green-600">Saved!</span>}
-                                {status === 'error' && <span className="text-red-600">Save failed!</span>}
-                                <button
-                                    onClick={handleSave}
-                                    disabled={status === 'saving' || isLoading}
-                                    className="py-2 px-6 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
-                                >
-                                    {status === 'saving' ? "Saving..." : "Save Daily Assignments"}
-                                </button>
-                            </div>
+                        <div className="flex items-center gap-4">
+                            {status === 'saved' && <span className="text-green-600">Saved!</span>}
+                            {status === 'error' && <span className="text-red-600">Save failed!</span>}
+                            <button
+                                onClick={handleSave}
+                                disabled={status === 'saving' || isLoading}
+                                className="py-2 px-6 bg-blue-600 text-white rounded-md shadow-md font-medium hover:bg-blue-700 disabled:bg-gray-400"
+                            >
+                                {status === 'saving' ? "Saving..." : "Save Daily Assignments"}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -982,7 +988,7 @@
                         }
                     });
 
-                    // --- 1. SENTRY DEPLOYMENT (Omitted for brevity in this response) ---
+                    // --- 1. SENTRY DEPLOYMENT ---
                     SENTRY_POSITIONS.forEach(pos => {
                         const positionRoster = [];
                         const letterSequence = SENTRY_POSITION_SEQUENCES[pos]; 
@@ -1023,7 +1029,7 @@
                         }
                     });
 
-                    // --- 2. FOYER DEPLOYMENT (Omitted for brevity in this response) ---
+                    // --- 2. FOYER DEPLOYMENT ---
                     let foyer1_ids = sequenceMap["FOYER 1"];
                     if (!Array.isArray(foyer1_ids)) foyer1_ids = foyer1_ids ? [foyer1_ids] : [];
                     
@@ -1075,7 +1081,7 @@
                         }
                     }
 
-                    // --- 6-SLOT Vertical Prowler (Omitted for brevity in this response) ---
+                    // --- 6-SLOT Vertical Prowler ---
                     const existingProwlerData = newRosterGrid[VERTICAL_PROWLER_POSITION] || [];
                     
                     // Foyer OE slots are used to seed VP (Indices: 0, 2, 4, 6, 8, 10).
@@ -1105,7 +1111,7 @@
                     newRosterGrid[VERTICAL_PROWLER_POSITION] = verticalProwlerSequence.map(cell => ({...cell, isAutomated: true})); 
 
 
-                    // --- 3. SECURITY CONTROL OFFICE (Omitted for brevity in this response) ---
+                    // --- 3. SECURITY CONTROL OFFICE ---
                     let leaderIds = sequenceMap["TEAM LEADER (I/C)"];
                     if (!Array.isArray(leaderIds)) leaderIds = leaderIds ? [leaderIds] : [];
                     
@@ -1137,7 +1143,7 @@
                         return { isAutomated: true, permanent: sectionIcId, buffer: bufferIc || null, value: onlyStaff, isPair: false };
                     });
                     
-                    // --- 4. APPLY LOCATION BUFFER OVERRIDES (Omitted for brevity in this response) ---
+                    // --- 4. APPLY LOCATION BUFFER OVERRIDES ---
                     if (locationBufferMap && Object.keys(locationBufferMap).length > 0) {
                         Object.entries(locationBufferMap).forEach(([location, bufferId]) => {
                              if (newRosterGrid[location]) {
@@ -1510,11 +1516,12 @@
             const renderVerticalProwlerTable = (controlRoomStaff = []) => (
                 <div className="overflow-x-auto shadow-md rounded-lg border roster-section">
                     <table className="min-w-full divide-y divide-gray-200">
+                        {/* FIX 2: Ensure all VP cells (header and body) use the same width class for alignment */}
                         <thead className="bg-gray-100">
                             <tr>
                                 <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
                                 {VERTICAL_PROWLER_SLOTS.map(time => (
-                                    <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                                    <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap vp-cell-fix">{time}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -1529,9 +1536,12 @@
                                     const isPair = cell.isPair;
                                     const isAutomated = cell.isAutomated;
 
-                                    // Only VP Slot 2 (00:30) is editable by selection
+                                    // Add vp-cell-fix class to force consistent column width
+                                    let baseClasses = `w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center vp-cell-fix`;
+                                    
+                                    // Only VP Slot 2 (00:30) is editable by selection with dropdown
                                     if (index === 2) { 
-                                        let selectClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
+                                        let selectClasses = baseClasses;
                                         if (isHighlighted) {
                                             selectClasses += " highlight-cell";
                                         } else if (isMissing) {
@@ -1561,7 +1571,7 @@
                                     }
                                     
                                     if (isPair) {
-                                         let selectClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
+                                         let selectClasses = baseClasses;
                                          if (isHighlighted) {
                                             selectClasses += " highlight-cell";
                                         } else {
@@ -1586,7 +1596,7 @@
                                         );
                                     }
 
-                                    let inputClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
+                                    let inputClasses = baseClasses;
                                     if (isHighlighted) {
                                         inputClasses += " highlight-cell";
                                     } else if (isMissing) {
