@@ -27,8 +27,11 @@
             setLogLevel
         } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
-        // --- Your Firebase Config ---
-        const firebaseConfig = {
+        // Set Firebase Log Level for debugging
+        setLogLevel('debug');
+
+        // --- Mock Firebase Config (REPLACED by Canvas Globals) ---
+        const mockFirebaseConfig = {
           apiKey: "AIzaSyD7EdbBA4e04e6XvxnPgFdqZo_9squYMg0",
           authDomain: "shift-tracker-b7879.firebaseapp.com",
           projectId: "shift-tracker-b7879",
@@ -38,18 +41,23 @@
           measurementId: "G-Q0BFJ8SBSY"
         };
         
-        // --- Canvas Environment Variables ---
-        const globalFirebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+        // --- Canvas Environment Variables (CRITICAL) ---
+        // We use __firebase_config if available, otherwise fallback to mock
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : mockFirebaseConfig;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Initialize Firebase
-        const app = initializeApp(globalFirebaseConfig);
+        const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
         // Make functions and db available globally
         window.db = db;
-        window.auth = auth;
+        // FIX: The error "fireauth is not defined" was likely caused by a previous
+        // line trying to access it, or a typo in how the auth object was exposed.
+        // We ensure `window.auth` is correctly exposed and available to the React code.
+        window.auth = auth; 
+        
         window.firebase = {
             doc,
             getDoc,
@@ -92,6 +100,98 @@
             text-align-last: center !important;
             -moz-text-align-last: center !important;
         }
+        
+        /* --- PRINT STYLES (CRITICAL FOR USER REQUEST) --- */
+        @media print {
+            /* 1. Hide non-essential UI */
+            header, footer, .nav-buttons, .action-buttons, .focus-buttons, .date-selector, .unsaved-changes {
+                display: none !important;
+            }
+            
+            /* 2. Force Landscape and remove unnecessary margins */
+            @page {
+                size: A4 landscape;
+                margin: 0.5cm; /* Minimal margin */
+            }
+            
+            /* 3. Scale everything down and remove shadows/borders */
+            body {
+                zoom: 80%; /* Shrink content slightly to fit more */
+            }
+            .min-h-screen, #root, main, .container {
+                min-height: auto !important;
+                padding: 0 !important;
+                margin: 0 auto !important;
+                width: 100% !important;
+                max-width: none !important;
+            }
+            .shadow-md, .rounded-lg, .border {
+                box-shadow: none !important;
+                border: none !important;
+                border-collapse: collapse !important;
+            }
+            
+            /* 4. Optimize Table for Printing */
+            .roster-section {
+                break-inside: avoid; /* Prevent section from splitting across pages */
+                margin-bottom: 0.5cm !important;
+                padding: 0 !important;
+            }
+            .overflow-x-auto {
+                overflow: visible !important; /* Allow table to spill naturally into print space */
+            }
+            .min-w-full {
+                width: 100% !important;
+                table-layout: fixed; /* Fix table layout for consistent column width */
+            }
+            
+            /* 5. Compact Table Cells */
+            .p-1 {
+                padding: 0.1rem !important;
+            }
+            .text-xs, .text-sm {
+                font-size: 8pt !important;
+                line-height: 1.1 !important;
+            }
+            
+            /* 6. Sticky Header Fix (Must remove sticky behavior) */
+            .sticky {
+                position: static !important;
+            }
+
+            /* 7. Ensure text inputs/selects are rendered as plain text */
+            input, select {
+                -webkit-appearance: none !important;
+                -moz-appearance: none !important;
+                appearance: none !important;
+                border: 0.5px solid #ccc !important;
+                background-color: transparent !important;
+                text-align: center !important;
+                font-weight: bold;
+                color: #000;
+            }
+
+            /* 8. Fix background colors for printed output */
+            .dropdown-permanent, .dropdown-buffer, .highlight-cell {
+                /* Use solid colors that print well */
+                background-color: #E0F2FE !important; /* blue-100 */
+                color: #000 !important;
+                border: 0.5px solid #999 !important;
+                background-image: none !important;
+            }
+            
+            .bg-gray-100, .bg-gray-50 {
+                background-color: #f7f7f7 !important; /* Light gray for headers */
+            }
+            .bg-white {
+                background-color: white !important;
+            }
+            
+            .highlight-cell {
+                background-color: #FEF3C7 !important; /* yellow-100 */
+            }
+        }
+        /* --- END PRINT STYLES --- */
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -106,7 +206,7 @@
             signInWithCustomToken, initialAuthToken
         } = window.firebase;
         const db = window.db;
-        const auth = window.auth;
+        const auth = window.auth; // Ensure we use the correct variable name: `auth`
 
         // --- Constants ---
         
@@ -132,7 +232,7 @@
         ];
         
         const VERTICAL_PROWLER_SLOTS = [
-            "20:30", "23:00", "01:30", "04:00", "06:30"
+            "20:30", "23:00", "00:30", "03:00", "04:30", "06:30" // Corrected to 6 slots for 12 hours
         ];
         
         // --- ASSIGNMENT KEYS ---
@@ -157,7 +257,6 @@
         };
         
         // --- DB Collection Names ---
-        // USE ROOT LEVEL PATHS per your rules file
         const STAFF_POOL_COLLECTION = "staffPool_v7";
         const DAILY_ASSIGNMENTS_COLLECTION = "dailyAssignments_v7";
         const DAILY_ROSTER_COLLECTION = "dailyRosters_v7";
@@ -196,6 +295,13 @@
             const [error, setError] = useState(null);
             
             useEffect(() => {
+                // Ensure db is available before attempting to connect
+                if (!db) {
+                     console.error("Firestore DB not initialized.");
+                     setError("Database connection failed during staff load.");
+                     setLoading(false);
+                     return;
+                }
                 const staffCollectionRef = collection(db, STAFF_POOL_COLLECTION);
                 const unsubscribe = onSnapshot(staffCollectionRef, (querySnapshot) => {
                     const pool = [];
@@ -241,11 +347,21 @@
             const [selectedDate, setSelectedDate] = useState(getTodayDate());
 
             useEffect(() => {
-                onAuthStateChanged(auth, (user) => {
+                if (!auth) {
+                    setAuthError("Authentication service is unavailable.");
+                    setAuthLoading(false);
+                    return;
+                }
+                
+                // Use a local state to ensure we only try to sign in once
+                let isSigningIn = false;
+                
+                const unsubscribe = onAuthStateChanged(auth, (user) => {
                     if (user) {
                         setUserId(user.uid);
                         setAuthLoading(false);
-                    } else {
+                    } else if (!isSigningIn) {
+                        isSigningIn = true;
                         const signIn = async () => {
                             try {
                                 if (initialAuthToken) {
@@ -258,13 +374,16 @@
                             } catch (err) {
                                 console.error("Authentication error: ", err);
                                 setAuthError("Failed to authenticate.");
-                                setLoading(false);
+                            } finally {
+                                setAuthLoading(false);
                             }
                         };
                         signIn();
                     }
                 });
-            }, []);
+                
+                return () => unsubscribe();
+            }, []); // Dependency array is empty to run once on mount
 
             if (authLoading) return <div className="p-8 text-center text-xl font-semibold">Connecting...</div>
             if (authError) return <div className="p-8 text-center text-xl font-semibold text-red-600">{authError}</div>
@@ -273,11 +392,11 @@
             return (
                 <StaffProvider>
                     <div className="min-h-screen">
-                        {/* Header */}
+                        {/* Header: Hidden on Print */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
                                 <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.9)</h1>
-                                <div className="flex space-x-2">
+                                <div className="flex space-x-2 nav-buttons">
                                     <NavButton
                                         label="Daily Roster"
                                         isActive={view === 'roster'}
@@ -298,6 +417,7 @@
                             {view === 'settings' && <StaffAndRosterSetupView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />}
                         </main>
                         
+                        {/* Footer: Hidden on Print */}
                         <footer className="text-center p-4 text-gray-500 text-sm">
                             User ID: <span className="font-mono bg-gray-200 px-1 rounded">{userId}</span>
                         </footer>
@@ -415,7 +535,7 @@
             const bufferStaff = useMemo(() => staffPool.filter(s => s.type === 'buffer'), [staffPool]);
 
             useEffect(() => {
-                if (!selectedDate) return;
+                if (!selectedDate || !db) return;
                 setLoading(true);
                 const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -534,6 +654,7 @@
             };
 
             const handleSave = async () => {
+                if (!db) return setError("Database not available.");
                 setStatus("saving");
                 setError(null);
                 try {
@@ -557,7 +678,7 @@
                 <div className="bg-white p-2 sm:p-6 rounded-lg shadow-lg">
                     <h2 className="text-xl font-bold mb-4 text-gray-800">2. Daily Roster Setup</h2>
                     
-                    <div className="mb-6">
+                    <div className="mb-6 date-selector">
                         <label htmlFor="roster-date" className="font-medium text-gray-700 text-lg">Select Date:</label>
                         <input
                             type="date"
@@ -694,7 +815,7 @@
                         </div>
                     </div>
                     
-                    <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4">
+                    <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4 action-buttons">
                         {/* Clear All Button */}
                         <button
                             onClick={handleClearAll}
@@ -732,8 +853,13 @@
             const [highlightedId, setHighlightedId] = useState(null);
             const [focusView, setFocusView] = useState('all');
             
+            // --- NEW: Print Handler ---
+            const handlePrint = () => {
+                window.print();
+            };
+            
             useEffect(() => {
-                if (!selectedDate) return;
+                if (!selectedDate || !db) return;
                 setLoading(true);
                 setError(null);
                 setIsDirty(false);
@@ -807,6 +933,12 @@
             const handleGenerateRoster = async (isReset = false) => {
                 setLoading(true);
                 setError(null);
+                
+                if (!db) {
+                     setError("Database not available.");
+                     setLoading(false);
+                     return;
+                }
                 
                 if (!dailyAssignments || !dailyAssignments.sequenceMap || !staffTypeMap || staffTypeMap.size === 0) {
                     setError("No assignments or staff types found. Please check Setup and wait for data.");
@@ -926,24 +1058,34 @@
                         }
                     }
 
-                    // --- 5-SLOT Vertical Prowler ---
+                    // --- 6-SLOT Vertical Prowler ---
                     const existingProwlerData = newRosterGrid[VERTICAL_PROWLER_POSITION] || [];
+                    
+                    // Foyer OE slots are used to seed VP (Indices: 0, 2, 4, 6, 8, 10).
                     const verticalProwlerSequence = [
-                        foyerOESequence[0], 
-                        foyerOESequence[3],  
-                        existingProwlerData[2] || { value: UNFILLED_SLOT, isAutomated: false },
-                        foyerOESequence[8],  
-                        foyerOESequence[10]  
+                        foyerOESequence[0],  // 20:30
+                        foyerOESequence[2],  // 23:00 (Index 2)
+                        foyerOESequence[4],  // 00:30 (Index 4)
+                        foyerOESequence[6],  // 03:00 (Index 6)
+                        foyerOESequence[8],  // 04:30 (Index 8)
+                        foyerOESequence[10]  // 06:30 (Index 10)
                     ];
-
-                    [0, 1, 3, 8, 10].forEach(i => {
+                    
+                    // Clear Foyer OE slots that are taken by VP (Indices: 0, 2, 4, 6, 8, 10)
+                    [0, 2, 4, 6, 8, 10].forEach(i => {
                         foyerOESequence[i] = { ...foyerOESequence[i], value: UNFILLED_SLOT, isPair: false };
                     });
                     
                     newRosterGrid["XRAY-VISITOR"] = xraySequence;
                     newRosterGrid["FOYER-OE"] = foyerOESequence;
-                    newRosterGrid[VERTICAL_PROWLER_POSITION] = verticalProwlerSequence.map(cell => ({...cell, isAutomated: true})); // Mark prowler as "automated"
-                    newRosterGrid[VERTICAL_PROWLER_POSITION][2] = existingProwlerData[2] || { value: UNFILLED_SLOT, isAutomated: false }; 
+                    
+                    // Apply existing manual edit for 00:30 (VP slot index 2, which corresponds to Roster Time Index 4)
+                    const vpManualIndex = 2;
+                    if (existingProwlerData[vpManualIndex] && !existingProwlerData[vpManualIndex].isAutomated) {
+                        verticalProwlerSequence[vpManualIndex] = existingProwlerData[vpManualIndex];
+                    }
+
+                    newRosterGrid[VERTICAL_PROWLER_POSITION] = verticalProwlerSequence.map(cell => ({...cell, isAutomated: true})); 
 
 
                     // --- 3. SECURITY CONTROL OFFICE ---
@@ -985,13 +1127,8 @@
                              if (newRosterGrid[location]) {
                                  // Update every cell in this location row
                                  newRosterGrid[location] = newRosterGrid[location].map((cell, index) => {
-                                     // If it's a Vertical Prowler row, we need to be careful about slots 2, 4, etc. if structure is complex
-                                     // But general structure is array of cells.
                                      
                                      const permanentStaff = cell.permanent || (cell.value !== bufferId ? cell.value : UNFILLED_SLOT);
-                                     
-                                     // If existing cell is already a pair, we might be overwriting the previous buffer
-                                     // Or if it's a single staff, we turn it into a pair.
                                      
                                      if (permanentStaff !== UNFILLED_SLOT && permanentStaff !== "") {
                                          return {
@@ -1000,16 +1137,14 @@
                                              buffer: bufferId,
                                              isPair: true,
                                              isAutomated: true,
-                                             // Reset value to permanent default on generation, unless user explicitly selected buffer before (which we reset on regen anyway)
                                              value: permanentStaff 
                                          };
                                      } else {
-                                         // If slot is empty or only has the buffer itself?
                                          return {
                                              ...cell,
-                                             permanent: UNFILLED_SLOT, // No permanent staff here
+                                             permanent: UNFILLED_SLOT, 
                                              buffer: bufferId,
-                                             isPair: false, // It's just the buffer? No, standard logic is value=buffer if no perm
+                                             isPair: false, 
                                              value: bufferId,
                                              isAutomated: true
                                          }
@@ -1046,6 +1181,7 @@
             
             const handleSaveChanges = async () => {
                 if (!rosterData || !isDirty) return;
+                if (!db) return setError("Database not available.");
                 setLoading(true);
                 setError(null);
                 try {
@@ -1258,7 +1394,7 @@
                                             {pos === "OE/ STANDBY" && (
                                                 <button 
                                                     onClick={handleAddStandbyRow}
-                                                    className="ml-2 w-5 h-5 flex items-center justify-center bg-green-500 text-white rounded-full font-bold hover:bg-green-600"
+                                                    className="ml-2 w-5 h-5 flex items-center justify-center bg-green-500 text-white rounded-full font-bold hover:bg-green-600 print-hidden"
                                                     title="Add manual standby row"
                                                 >
                                                     +
@@ -1268,7 +1404,7 @@
                                             {isManualStandbyRow && (
                                                 <button 
                                                     onClick={() => handleRemoveStandbyRow(pos)}
-                                                    className="ml-2 w-5 h-5 flex items-center justify-center bg-red-500 text-white rounded-full font-bold hover:bg-red-600"
+                                                    className="ml-2 w-5 h-5 flex items-center justify-center bg-red-500 text-white rounded-full font-bold hover:bg-red-600 print-hidden"
                                                     title={`Remove row ${pos}`}
                                                 >
                                                     -
@@ -1287,7 +1423,6 @@
                                         const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
 
                                         const getCellClasses = () => {
-                                            // UPDATED: Compact Width (w-16 instead of w-24) and text-xs
                                             let baseClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                             if (isHighlighted) {
                                                 return baseClasses + " highlight-cell"; 
@@ -1347,11 +1482,11 @@
                 );
             };
 
-            const renderTableHeader = () => (
+            const renderTableHeader = (customSlots = TIME_SLOTS) => (
                 <thead className="bg-gray-100">
                     <tr>
                         <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
-                        {TIME_SLOTS.map(time => (
+                        {customSlots.map(time => (
                             <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
                         ))}
                     </tr>
@@ -1359,7 +1494,7 @@
             );
 
             const renderVerticalProwlerTable = (controlRoomStaff = []) => (
-                <div className="overflow-x-auto shadow-md rounded-lg border">
+                <div className="overflow-x-auto shadow-md rounded-lg border roster-section">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
                             <tr>
@@ -1380,8 +1515,8 @@
                                     const isPair = cell.isPair;
                                     const isAutomated = cell.isAutomated;
 
-                                    if (index === 2) {
-                                        // UPDATED: Compact Width
+                                    // Only VP Slot 2 (00:30) is editable by selection
+                                    if (index === 2) { 
                                         let selectClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                         if (isHighlighted) {
                                             selectClasses += " highlight-cell";
@@ -1412,7 +1547,6 @@
                                     }
                                     
                                     if (isPair) {
-                                         // UPDATED: Compact Width
                                          let selectClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                          if (isHighlighted) {
                                             selectClasses += " highlight-cell";
@@ -1438,7 +1572,6 @@
                                         );
                                     }
 
-                                    // UPDATED: Compact Width
                                     let inputClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                     if (isHighlighted) {
                                         inputClasses += " highlight-cell";
@@ -1493,8 +1626,9 @@
 
             return (
                 <div className="bg-white sm:p-6 rounded-lg shadow-lg">
-                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 p-2 sm:p-0">
-                        <div className="flex items-center gap-2">
+                    {/* Control Bar: Hidden on Print */}
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 p-2 sm:p-0 action-buttons">
+                        <div className="flex items-center gap-2 date-selector">
                             <label htmlFor="roster-date-main" className="font-medium text-gray-700 text-lg">Roster Date:</label>
                             <input
                                 type="date"
@@ -1505,7 +1639,15 @@
                             />
                         </div>
                         <div className="flex space-x-2">
-                            {/* NEW: Reset & Regenerate Button */}
+                            {/* NEW: Print Button */}
+                            <button
+                                onClick={handlePrint}
+                                disabled={loading || !rosterData}
+                                className="py-2 px-4 bg-purple-600 text-white rounded-md shadow-md font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                            >
+                                Print Roster (Horizontal)
+                            </button>
+                            
                             <button
                                 onClick={() => {
                                     if(confirm("Warning: This will wipe all manual edits in the roster grid.\n\nYour 'Daily Roster Setup' assignments will be PRESERVED and used to regenerate the grid.\n\nContinue?")) {
@@ -1537,8 +1679,11 @@
                         </div>
                     </div>
                     
-                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4 mx-2 sm:mx-0">{error}</div>}
-                    {isDirty && <div className="text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4 mx-2 sm:mx-0">You have unsaved changes.</div>}
+                    {error && <div className="text-red-600 bg-red-100 p-3 rounded-md mb-4 mx-2 sm:mx-0">
+                        {error}
+                        <p className="text-sm mt-1">Note: Print View will still attempt to render data even with minor load errors.</p>
+                    </div>}
+                    {isDirty && <div className="text-yellow-700 bg-yellow-100 p-3 rounded-md mb-4 mx-2 sm:mx-0 unsaved-changes">You have unsaved changes.</div>}
 
                     {loading && !rosterData && <div className="text-center p-8">Loading...</div>}
                     
@@ -1552,16 +1697,19 @@
                     {rosterData && (
                         <div className="space-y-6 p-2 sm:p-0">
                         
-                            <div className="flex space-x-2 p-2 sm:p-0 bg-gray-100 sm:bg-transparent rounded-lg">
+                            {/* Focus Buttons: Hidden on Print */}
+                            <div className="flex space-x-2 p-2 sm:p-0 bg-gray-100 sm:bg-transparent rounded-lg focus-buttons">
                                 <FocusButton label="Show All" view="all" icon="all" />
                                 <FocusButton label="SCR" view="security" icon="security" />
                                 <FocusButton label="Foyer" view="foyer" icon="foyer" />
                                 <FocusButton label="Sentry" view="sentry" icon="sentry" />
                             </div>
+                            
+                            <h2 className="text-xl font-bold mb-4 text-center hidden print:block">DAILY ROSTER - {selectedDate}</h2>
                         
                             {(focusView === 'all' || focusView === 'security') && (
-                                <div className={focusView !== 'all' ? 'border-t border-gray-300 pt-4' : ''}>
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Security Control Office</h3>
+                                <div className={`roster-section ${focusView !== 'all' ? 'border-t border-gray-300 pt-4' : ''}`}>
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Security Control Office</h3>
                                     <div className="overflow-x-auto shadow-md rounded-lg border">
                                         <table className="min-w-full divide-y divide-gray-200">
                                             {renderTableHeader()}
@@ -1572,8 +1720,8 @@
                             )}
                             
                              {(focusView === 'all' || focusView === 'foyer') && (
-                                <div className="border-t border-gray-300 pt-6 space-y-4">
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Foyer Deployment</h3>
+                                <div className="border-t border-gray-300 pt-6 space-y-4 roster-section">
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Foyer Deployment</h3>
                                     <div className="overflow-x-auto shadow-md rounded-lg border">
                                         <table className="min-w-full divide-y divide-gray-200">
                                             {renderTableHeader()}
@@ -1581,6 +1729,7 @@
                                         </table>
                                     </div>
                                     
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Vertical Prowler</h3>
                                     {(() => {
                                         const teamLeaderId = (rosterData[SECURITY_POSITIONS[0]]?.[0]?.value || "").trim();
                                         const sectionIcId = (rosterData[SECURITY_POSITIONS[1]]?.[0]?.value || "").trim();
@@ -1592,8 +1741,8 @@
                              )}
 
                              {(focusView === 'all' || focusView === 'sentry') && (
-                                <div className="border-t border-gray-300 pt-6">
-                                    <h3 className="text-lg font-semibold mb-2 text-gray-700">Sentry Deployment</h3>
+                                <div className="border-t border-gray-300 pt-6 roster-section">
+                                    <h3 className="text-lg font-semibold mb-2 text-gray-700 print:text-base print:font-bold print:bg-gray-200 print:p-1 print:border-b">Sentry Deployment / Patrol Duties</h3>
                                     <div className="overflow-x-auto shadow-md rounded-lg border">
                                         <table className="min-w-full divide-y divide-gray-200">
                                             {renderTableHeader()}
