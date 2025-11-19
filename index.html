@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Roster System (v12.8 - Sentry View Names)</title>
+    <title>Intelligent Roster System (v12.9 - Compact 12H View)</title>
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 2. Load React & ReactDOM -->
@@ -84,6 +84,13 @@
             font-weight: bold;
             color: #581c87; /* purple-900 */
             background-color: #d8b4fe; /* purple-300 */
+        }
+        
+        /* CRITICAL: Force Center Alignment for Inputs and Selects (Fixes iOS Left Align) */
+        select, input {
+            text-align: center !important;
+            text-align-last: center !important;
+            -moz-text-align-last: center !important;
         }
     </style>
 </head>
@@ -269,7 +276,7 @@
                         {/* Header */}
                         <header className="bg-white shadow-md">
                             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center py-4 gap-4">
-                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.8)</h1>
+                                <h1 className="text-2xl font-bold text-blue-600">Direct Assign Roster (v12.9)</h1>
                                 <div className="flex space-x-2">
                                     <NavButton
                                         label="Daily Roster"
@@ -388,12 +395,24 @@
         function DailySequenceAssignment({ selectedDate, setSelectedDate }) {
             const { staffPool, staffTypeMap, loading: staffLoading } = useContext(StaffContext);
             const [sequenceMap, setSequenceMap] = useState({});
+            const [locationBufferMap, setLocationBufferMap] = useState({});
             const [loading, setLoading] = useState(true);
             const [status, setStatus] = useState("idle");
             const [error, setError] = useState(null);
 
             const allStaff = useMemo(() => staffPool, [staffPool]);
             const allAssignmentKeys = useMemo(() => ASSIGNMENT_KEYS, []);
+            
+            // UPDATED: Restricted List for Location Overrides
+            const overrideLocations = useMemo(() => [
+                "E3",
+                "N1 (CNB)",
+                "PATROL 1",
+                "PATROL 2",
+                VERTICAL_PROWLER_POSITION
+            ], []);
+            
+            const bufferStaff = useMemo(() => staffPool.filter(s => s.type === 'buffer'), [staffPool]);
 
             useEffect(() => {
                 if (!selectedDate) return;
@@ -403,9 +422,11 @@
                     
                     const defaultMap = {};
                     allAssignmentKeys.forEach(key => defaultMap[key] = []); 
+                    const defaultLocMap = {};
 
                     if (docSnap.exists()) {
-                        const loadedMap = docSnap.data().sequenceMap || {};
+                        const data = docSnap.data();
+                        const loadedMap = data.sequenceMap || {};
                         Object.keys(loadedMap).forEach(key => {
                             if (allAssignmentKeys.includes(key)) { 
                                 if (Array.isArray(loadedMap[key])) {
@@ -416,8 +437,10 @@
                             }
                         });
                         setSequenceMap(defaultMap);
+                        setLocationBufferMap(data.locationBufferMap || {});
                     } else {
                         setSequenceMap(defaultMap);
+                        setLocationBufferMap({});
                     }
                     setLoading(false);
                 }, (err) => {
@@ -429,13 +452,18 @@
                 return () => unsubscribe();
             }, [selectedDate, allAssignmentKeys]);
 
+            // UPDATED: staffToSequenceMap now concatenates multiple assignments for multi-assigned staff (Buffers)
             const staffToSequenceMap = useMemo(() => {
                 const map = {};
                 for (const key of allAssignmentKeys) {
                     const staffIds = sequenceMap[key]; 
                     if (staffIds) {
                         staffIds.forEach(staffId => {
-                            map[staffId] = key;
+                            if (map[staffId]) {
+                                map[staffId] = `${map[staffId]}, ${key}`;
+                            } else {
+                                map[staffId] = key;
+                            }
                         });
                     }
                 }
@@ -446,37 +474,51 @@
                 setStatus("idle");
                 const newMap = { ...sequenceMap };
                 const staffType = staffTypeMap.get(staffId);
-                const oldKey = staffToSequenceMap[staffId]; 
-
-                if (oldKey) {
-                    newMap[oldKey] = (newMap[oldKey] || []).filter(id => id !== staffId);
+                
+                // UPDATED: Logic for handling assignments
+                // If NOT buffer, remove from previous assignment (Strict 1:1)
+                // If Buffer, DO NOT remove from previous assignment (1:Many allowed)
+                if (staffType !== 'buffer') {
+                    // Remove from any other key first
+                     allAssignmentKeys.forEach(key => {
+                         if (newMap[key] && newMap[key].includes(staffId)) {
+                             newMap[key] = newMap[key].filter(id => id !== staffId);
+                         }
+                     });
                 }
 
                 const currentIdsInSlot = newMap[keyToAssign] || [];
                 
-                if (staffType === 'buffer') {
+                // Add to new slot if not already there
+                if (!currentIdsInSlot.includes(staffId)) {
                     newMap[keyToAssign] = [...currentIdsInSlot, staffId];
-                } else {
-                    if (currentIdsInSlot.length === 0) {
-                        newMap[keyToAssign] = [staffId];
-                    } else {
-                        if (oldKey) {
-                             newMap[oldKey] = (newMap[oldKey] || []).concat(staffId);
-                        }
-                        return; 
-                    }
                 }
+                
                 setSequenceMap(newMap);
+            };
+            
+            const handleLocationBufferChange = (location, staffId) => {
+                const newMap = { ...locationBufferMap };
+                if (staffId === "") {
+                    delete newMap[location];
+                } else {
+                    newMap[location] = staffId;
+                }
+                setLocationBufferMap(newMap);
             };
 
             const handleUnassign = (staffId) => {
                 setStatus("idle");
                 const newMap = { ...sequenceMap };
-                const oldKey = staffToSequenceMap[staffId];
-
-                if (oldKey) {
-                    newMap[oldKey] = (newMap[oldKey] || []).filter(id => id !== staffId);
-                }
+                
+                // UPDATED: Completely remove staffId from ALL slots
+                // This allows clearing a buffer who has multiple assignments
+                allAssignmentKeys.forEach(key => {
+                     if (newMap[key] && newMap[key].includes(staffId)) {
+                         newMap[key] = newMap[key].filter(id => id !== staffId);
+                     }
+                });
+                
                 setSequenceMap(newMap);
             };
             
@@ -486,6 +528,7 @@
                     const emptyMap = {};
                     allAssignmentKeys.forEach(key => emptyMap[key] = []);
                     setSequenceMap(emptyMap);
+                    setLocationBufferMap({});
                     setStatus("idle"); // Reset save status so user knows to save again
                 }
             };
@@ -495,7 +538,10 @@
                 setError(null);
                 try {
                     const docRef = doc(db, DAILY_ASSIGNMENTS_COLLECTION, selectedDate);
-                    await setDoc(docRef, { sequenceMap: sequenceMap });
+                    await setDoc(docRef, { 
+                        sequenceMap: sequenceMap,
+                        locationBufferMap: locationBufferMap 
+                    });
                     setStatus("saved");
                     setTimeout(() => setStatus("idle"), 2000);
                 } catch (err) {
@@ -540,9 +586,10 @@
                                 const assignedSequence = staffToSequenceMap[staff.id] || "";
                                 const staffType = staff.type;
                                 
-                                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.includes(assignedSequence);
-                                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.includes(assignedSequence);
-                                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.includes(assignedSequence);
+                                // UPDATED: Loose matching for partial assignment strings (e.g., "E1, E3")
+                                const isSentryAssignment = SENTRY_SEQUENCE_KEYS.some(k => assignedSequence.includes(k));
+                                const isFoyerAssignment = FOYER_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
+                                const isSecurityAssignment = SECURITY_ASSIGNMENT_KEYS.some(k => assignedSequence.includes(k));
                                 
                                 let colorClass = 'bg-white';
                                 if (staffType === 'buffer' && assignedSequence) {
@@ -551,6 +598,9 @@
                                 else if (isSentryAssignment) colorClass = 'bg-blue-100 border-blue-300';
                                 else if (isFoyerAssignment) colorClass = 'bg-green-100 border-green-300';
                                 else if (isSecurityAssignment) colorClass = 'bg-orange-100 border-orange-300';
+
+                                // Check if multiple roles
+                                const isMultiple = assignedSequence.includes(',');
 
                                 return (
                                     <div 
@@ -578,6 +628,12 @@
                                             className="p-2 border border-gray-300 rounded-md shadow-sm w-40 truncate"
                                         >
                                             <option value="">{UNASSIGNED_KEY}</option>
+                                            
+                                            {/* UPDATED: Dynamic option for multi-assigned buffers */}
+                                            {isMultiple && (
+                                                <option value={assignedSequence} disabled>{assignedSequence} (Multiple)</option>
+                                            )}
+
                                             {allAssignmentKeys.map(key => {
                                                 const staffIdsInSlot = sequenceMap[key] || [];
                                                 const isThisStaffInSlot = staffIdsInSlot.includes(staff.id);
@@ -589,6 +645,7 @@
                                                     if (staff.type === 'permanent' || !staff.type) {
                                                         isDisabled = true;
                                                     } else if (staff.type === 'buffer') {
+                                                        // Block if slot is full of buffers OR full (e.g. 2 people already)
                                                         if (typesInSlot.includes('buffer')) {
                                                             isDisabled = true;
                                                         }
@@ -610,6 +667,32 @@
                             })}
                         </div>
                     )}
+                    
+                    {/* --- NEW: Section 3 Location Overrides --- */}
+                    <div className="mt-8 border-t pt-6">
+                        <h3 className="text-lg font-bold mb-4 text-gray-800">3. Buffer Location Override (Whole Shift)</h3>
+                        <p className="text-gray-600 mb-4 text-sm">
+                            Select a Buffer staff to cover an entire location (Row) for the whole night (20:00 - 07:00). 
+                            Only E3, N1, Patrol 1, Patrol 2, and Vertical Prowler are available for this function.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
+                             {overrideLocations.map(loc => (
+                                 <div key={loc} className="flex flex-col gap-1">
+                                     <label className="text-xs font-bold text-gray-600 uppercase">{loc}</label>
+                                     <select
+                                        value={locationBufferMap[loc] || ""}
+                                        onChange={(e) => handleLocationBufferChange(loc, e.target.value)}
+                                        className={`p-2 border border-gray-300 rounded-md text-sm ${locationBufferMap[loc] ? 'bg-purple-100 border-purple-400 text-purple-900 font-bold' : 'bg-white'}`}
+                                     >
+                                         <option value="">-- No Buffer Override --</option>
+                                         {bufferStaff.map(b => (
+                                             <option key={b.id} value={b.id}>{b.id}</option>
+                                         ))}
+                                     </select>
+                                 </div>
+                             ))}
+                        </div>
+                    </div>
                     
                     <div className="flex justify-end items-center gap-4 mt-6 border-t pt-4">
                         {/* Clear All Button */}
@@ -733,6 +816,8 @@
                 
                 try {
                     const sequenceMap = dailyAssignments.sequenceMap;
+                    const locationBufferMap = dailyAssignments.locationBufferMap || {};
+                    
                     // If reset is true, we start with an empty grid (ignoring previous manual edits)
                     // If reset is false, we clone the current data to preserve manual edits
                     const newRosterGrid = (rosterData && !isReset) ? { ...rosterData } : {};
@@ -893,6 +978,47 @@
                         return { isAutomated: true, permanent: sectionIcId, buffer: bufferIc || null, value: onlyStaff, isPair: false };
                     });
                     
+                    // --- 4. APPLY LOCATION BUFFER OVERRIDES ---
+                    // Iterate through the locationBufferMap and force assignments
+                    if (locationBufferMap && Object.keys(locationBufferMap).length > 0) {
+                        Object.entries(locationBufferMap).forEach(([location, bufferId]) => {
+                             if (newRosterGrid[location]) {
+                                 // Update every cell in this location row
+                                 newRosterGrid[location] = newRosterGrid[location].map((cell, index) => {
+                                     // If it's a Vertical Prowler row, we need to be careful about slots 2, 4, etc. if structure is complex
+                                     // But general structure is array of cells.
+                                     
+                                     const permanentStaff = cell.permanent || (cell.value !== bufferId ? cell.value : UNFILLED_SLOT);
+                                     
+                                     // If existing cell is already a pair, we might be overwriting the previous buffer
+                                     // Or if it's a single staff, we turn it into a pair.
+                                     
+                                     if (permanentStaff !== UNFILLED_SLOT && permanentStaff !== "") {
+                                         return {
+                                             ...cell,
+                                             permanent: permanentStaff,
+                                             buffer: bufferId,
+                                             isPair: true,
+                                             isAutomated: true,
+                                             // Reset value to permanent default on generation, unless user explicitly selected buffer before (which we reset on regen anyway)
+                                             value: permanentStaff 
+                                         };
+                                     } else {
+                                         // If slot is empty or only has the buffer itself?
+                                         return {
+                                             ...cell,
+                                             permanent: UNFILLED_SLOT, // No permanent staff here
+                                             buffer: bufferId,
+                                             isPair: false, // It's just the buffer? No, standard logic is value=buffer if no perm
+                                             value: bufferId,
+                                             isAutomated: true
+                                         }
+                                     }
+                                 });
+                             }
+                        });
+                    }
+                    
                     // NEW: Sanitize before saving
                     const finalRosterGrid = sanitizeForFirestore(newRosterGrid);
 
@@ -977,11 +1103,13 @@
                     const bufferId = cell.buffer;
                     
                     if (cell.isPair && newValue === bufferId && oldValue === permanentId) {
-                        placeDisplacedStaff(newRoster, permanentId);
+                        // UPDATED: Pass timeIndex to place displaced staff in correct time slot
+                        placeDisplacedStaff(newRoster, permanentId, timeIndex);
                     }
                     
                     if (cell.isPair && newValue === permanentId && oldValue === bufferId) {
-                        removeDisplacedStaff(newRoster, permanentId);
+                        // UPDATED: Pass timeIndex to remove displaced staff from correct time slot
+                        removeDisplacedStaff(newRoster, permanentId, timeIndex);
                     }
 
                     return newRoster;
@@ -989,8 +1117,8 @@
                 setIsDirty(true);
             };
             
-            const placeDisplacedStaff = (roster, staffId) => {
-                // UPDATED: Dynamic scan to ensure we find rows added in same cycle
+            // UPDATED: Added timeIndex param to ensure placement in correct column
+            const placeDisplacedStaff = (roster, staffId, timeIndex) => {
                 const allRows = Object.keys(roster).filter(key => key.startsWith("OE/ STANDBY"));
                 allRows.sort((a, b) => {
                     if (a === "OE/ STANDBY") return -1;
@@ -1002,17 +1130,16 @@
                 
                 for (const rowName of allRows) {
                     const row = roster[rowName];
-                    if (row) {
-                        for (let i = 0; i < TIME_SLOTS.length; i++) {
-                            const cell = row[i];
-                            if (!cell.value || cell.value === UNFILLED_SLOT || cell.value === "") {
-                                if (rowName === "OE/ STANDBY") {
-                                    roster[rowName][i] = { ...cell, value: staffId, isDisplaced: true };
-                                } else {
-                                    roster[rowName][i] = { value: staffId, isAutomated: false };
-                                }
-                                return;
+                    // UPDATED: Check ONLY the specific timeIndex, do not loop through all slots
+                    if (row && row[timeIndex]) {
+                        const cell = row[timeIndex];
+                        if (!cell.value || cell.value === UNFILLED_SLOT || cell.value === "") {
+                            if (rowName === "OE/ STANDBY") {
+                                roster[rowName][timeIndex] = { ...cell, value: staffId, isDisplaced: true };
+                            } else {
+                                roster[rowName][timeIndex] = { value: staffId, isAutomated: false };
                             }
+                            return;
                         }
                     }
                 }
@@ -1024,28 +1151,27 @@
                 const newRowName = `OE/ STANDBY-${nextNum}`;
                 
                 const newRow = Array(TIME_SLOTS.length).fill(null).map(() => ({ value: "", isAutomated: false }));
-                newRow[0] = { value: staffId, isAutomated: false };
+                // UPDATED: Place at specific timeIndex in new row
+                newRow[timeIndex] = { value: staffId, isAutomated: false };
                 roster[newRowName] = newRow;
             };
 
-            const removeDisplacedStaff = (roster, staffId) => {
-                 // UPDATED: Dynamic scan to find displaced staff even in new rows
+            // UPDATED: Added timeIndex param to ensure removal from correct column
+            const removeDisplacedStaff = (roster, staffId, timeIndex) => {
                  const allRows = Object.keys(roster).filter(key => key.startsWith("OE/ STANDBY"));
                  
                  for (const rowName of allRows) {
                     const row = roster[rowName];
-                    if (row) {
-                        for (let i = 0; i < TIME_SLOTS.length; i++) {
-                            const cell = row[i];
-                            if (cell.value === staffId) {
-                                if (rowName === "OE/ STANDBY") {
-                                    roster[rowName][i] = { ...cell, value: cell.permanent || UNFILLED_SLOT, isDisplaced: false };
-                                } else {
-                                    roster[rowName][i] = { ...cell, value: "" };
-                                }
-                                // Continue scanning? No, assuming 1:1 displacement. Return is safer to avoid over-clearing.
-                                return;
+                    if (row && row[timeIndex]) {
+                         const cell = row[timeIndex];
+                         // UPDATED: Check ONLY the specific timeIndex
+                         if (cell.value === staffId) {
+                             if (rowName === "OE/ STANDBY") {
+                                roster[rowName][timeIndex] = { ...cell, value: cell.permanent || UNFILLED_SLOT, isDisplaced: false };
+                            } else {
+                                roster[rowName][timeIndex] = { ...cell, value: "" };
                             }
+                            return;
                         }
                     }
                  }
@@ -1161,8 +1287,8 @@
                                         const isHighlighted = highlightedId && value === highlightedId && value !== UNFILLED_SLOT && value !== "";
 
                                         const getCellClasses = () => {
-                                            // UPDATED: w-16 to w-24
-                                            let baseClasses = "w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                            // UPDATED: Compact Width (w-16 instead of w-24) and text-xs
+                                            let baseClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                             if (isHighlighted) {
                                                 return baseClasses + " highlight-cell"; 
                                             }
@@ -1226,7 +1352,7 @@
                     <tr>
                         <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
                         {TIME_SLOTS.map(time => (
-                            <th key={time} className="p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                            <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
                         ))}
                     </tr>
                 </thead>
@@ -1239,7 +1365,7 @@
                             <tr>
                                 <th className="sticky left-0 bg-gray-100 p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider z-10">Location/Call-Sign</th>
                                 {VERTICAL_PROWLER_SLOTS.map(time => (
-                                    <th key={time} className="p-1 text-left text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
+                                    <th key={time} className="p-1 text-center text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{time}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -1255,8 +1381,8 @@
                                     const isAutomated = cell.isAutomated;
 
                                     if (index === 2) {
-                                        // UPDATED: w-16 to w-24
-                                        let selectClasses = "w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                        // UPDATED: Compact Width
+                                        let selectClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                         if (isHighlighted) {
                                             selectClasses += " highlight-cell";
                                         } else if (isMissing) {
@@ -1286,8 +1412,8 @@
                                     }
                                     
                                     if (isPair) {
-                                         // UPDATED: w-16 to w-24
-                                         let selectClasses = "w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                         // UPDATED: Compact Width
+                                         let selectClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                          if (isHighlighted) {
                                             selectClasses += " highlight-cell";
                                         } else {
@@ -1312,8 +1438,8 @@
                                         );
                                     }
 
-                                    // UPDATED: w-16 to w-24
-                                    let inputClasses = "w-24 p-2 text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer";
+                                    // UPDATED: Compact Width
+                                    let inputClasses = "w-20 p-1 text-xs sm:text-sm border-0 border-r border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer text-center";
                                     if (isHighlighted) {
                                         inputClasses += " highlight-cell";
                                     } else if (isMissing) {
