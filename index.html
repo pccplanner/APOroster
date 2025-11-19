@@ -211,11 +211,27 @@
                 background-color: #FEF3C7 !important; /* yellow-100 */
             }
             
-            /* Vertical Prowler specific cell width/alignment fix */
+            /* --- VERTICAL PROWLER SPECIFIC FIXES (Alignment and Clipping) --- */
+            /* FIX 1: Increase content cell width and remove vertical spacing */
             .vp-cell-fix {
-                width: 16.66% !important; /* 100% / 6 time slots */
+                width: 17% !important; /* Slightly increased from 16.66% to prevent clipping */
                 text-align: center !important;
+                padding: 0px !important; /* Remove vertical space */
+                margin: 0px !important; /* Remove vertical space */
             }
+            
+            .roster-section table td {
+                padding: 0.1rem 0 !important; /* General cell padding adjustment */
+            }
+
+            /* Ensure the inputs/selects inside VP cells also obey the no-padding rule */
+            .roster-section table .vp-cell-fix input, 
+            .roster-section table .vp-cell-fix select {
+                margin: 0 !important;
+                padding: 0 1px !important; /* Minimal horizontal padding for visibility */
+                height: auto !important; /* Prevent extra height */
+            }
+            /* --- END VP FIXES --- */
             
         }
         /* --- END PRINT STYLES --- */
