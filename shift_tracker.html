@@ -1,0 +1,2564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shift Tracker</title>
+    
+    <!-- UPDATED: Meta tags for Add to Home Screen (PWA/Mobile Shortcut) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Shift Tracker">
+    <!-- Using the CORRECTED RAW GITHUB URL for the icon -->
+    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/Theva73/shift_tracking/main/apple-touch-icon.png">
+    <link rel="icon" href="https://raw.githubusercontent.com/Theva73/shift_tracking/main/apple-touch-icon.png">
+    <!-- END UPDATED METADATA -->
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #fdfbf6; padding-bottom: 100px; color: #3d3d3d; position: relative; overflow-x: hidden; }
+        body::before, body::after { content: ''; position: fixed; border-radius: 50%; opacity: 0.5; filter: blur(80px); z-index: -1; }
+        body::before { width: 300px; height: 300px; background: linear-gradient(to right, #e0c3fc, #8ec5fc); top: -100px; left: -100px; }
+        body::after { width: 400px; height: 400px; background: linear-gradient(to right, #fbc2eb, #a6c1ee); bottom: -150px; right: -150px; }
+        
+        /* FIX: Adjusted glass-card to keep backdrop blur, but we will selectively remove it from #calendar-card */
+        .glass-card { 
+            background: rgba(255, 255, 255, 0.6); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); 
+        }
+
+        .gradient-bg { background: linear-gradient(to right, #1e3a8a, #3b82f6); }
+        .btn { transition: all 0.2s ease-in-out; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); }
+        .overlay { transition: opacity 0.3s ease-in-out; }
+        .overlay.hidden { pointer-events: none; }
+        .bottom-sheet { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(100%); }
+        .overlay:not(.hidden) .bottom-sheet { transform: translateY(0); }
+        #logger-card, #tools-card, #auth-card, #calendar-card, #team-manager-card, #edit-team-pattern-card, #report-card, #profile-card { border-radius: 1.5rem 1.5rem 0 0; }
+        .glass-input { background-color: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .team-selector-btn { border: 2px solid transparent; background-color: rgba(255, 255, 255, 0.3); transition: all 0.2s ease-in-out; }
+        .team-selector-btn.active { border-color: #3b82f6; background-color: rgba(255, 255, 255, 0.7); }
+        .location-tag, .ot-tag { padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 500; font-size: 0.8rem; display: inline-block; }
+        
+        /* FIX: Remove blur from Calendar Card to resolve blurriness issue */
+        #calendar-card {
+            backdrop-filter: none !important; 
+            -webkit-backdrop-filter: none !important;
+            background: rgba(255, 255, 255, 0.95); /* Use solid color instead of blurry glass */
+        }
+        
+        /* --- FINAL CALENDAR VIEW STYLES --- */
+        #calendar-grid {
+            grid-auto-rows: minmax(6rem, auto);
+        }
+        .calendar-cell {
+            background: none; 
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.75rem; /* Rounded corners for cells */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05); /* Added subtle shadow for depth */
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem;
+            min-height: 80px; 
+            text-align: center;
+        }
+        .calendar-cell:not(.empty) {
+            cursor: pointer;
+        }
+        .calendar-cell:not(.empty):hover {
+            transform: scale(1.03); /* Slight lift on hover */
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+            z-index: 10;
+        }
+        .calendar-cell.empty {
+            background-color: rgba(255, 255, 255, 0.1);
+            opacity: 0.6;
+            cursor: default;
+            box-shadow: none;
+        }
+        .calendar-cell .day-num {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #333;
+            flex-shrink: 0;
+            text-align: right; /* Align day number to top right */
+            margin-bottom: 4px;
+        }
+        .weekend {
+            color: #c2410c; /* orange-700 */
+        }
+        
+        /* Shift Content Card Styling */
+        .logged-shift-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            flex-grow: 1;
+            padding: 0.3rem 0;
+            border-radius: 0.5rem;
+            
+            /* Inner card appearance */
+            background: rgba(255, 255, 255, 0.9); 
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            min-height: 60px;
+        }
+        
+        .shift-icon {
+            height: 1.25rem;
+            width: 1.25rem;
+            margin-bottom: 2px;
+        }
+
+        .location-text {
+            font-size: 0.7rem; /* Reduced size slightly for more room */
+            font-weight: 600;
+            width: 100%;
+            padding: 0 4px;
+            color: #333; 
+            flex-shrink: 0;
+            text-align: center;
+            margin-top: 2px;
+            
+            /* FIX: Allow two lines and smart break for long words */
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Limit to 2 lines */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word; 
+            line-height: 1.1; /* Slightly tighter line height */
+            height: 1.6rem; /* fixed height for 2 lines */
+        }
+        
+        .hours-text {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #1e3a8a; /* Deep blue for hours */
+            margin-top: 2px;
+        }
+        
+        .ot-tag-cal {
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: #b45309; /* Amber 700 */
+            background-color: #fef3c7; /* Amber 100 */
+            padding: 0 4px;
+            border-radius: 4px;
+            margin-top: 2px;
+            display: inline-block;
+        }
+
+        /* Shift Background Classes for Calendar Cells */
+        .shift-bg-Morning {
+            background: linear-gradient(to bottom, #fffdf8, #fef9c3); /* Light sun glow */
+        }
+        .shift-bg-Night {
+            background: linear-gradient(to bottom, #f0f4ff, #c7d2fe); /* Light moon glow */
+        }
+        .shift-bg-OFF {
+            background: linear-gradient(to bottom, #f0fff4, #d1fae5); /* Light cool green for rest */
+        }
+        .shift-bg-Other {
+            background: linear-gradient(to bottom, #ffffff, #f3f4f6); 
+        }
+
+        /* Auto shift styling - less prominent text color */
+        .auto-shift-card {
+            opacity: 0.7;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+            font-weight: 700;
+            color: #6b7280; /* Gray 500 */
+        }
+        .auto-shift-text {
+            font-size: 1rem;
+            margin-top: 4px;
+        }
+        
+        /* Specific fix for night icon to center the crescent moon visually */
+        .night-icon-svg path {
+             /* ensures the moon shape is drawn correctly relative to its container */
+            transform: translate(0, 0); 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+         <header class="flex justify-between items-center mb-4">
+             <h2 class="text-3xl font-bold text-center flex-grow">Shift History</h2>
+             <div class="text-right">
+                 <p id="user-display" class="text-sm text-gray-600 truncate max-w-[150px]"></p>
+                 <button id="auth-button" class="btn text-sm font-semibold text-blue-600 hover:text-blue-800">Sign In</button>
+             </div>
+         </header>
+
+        <!-- NEW: Global Error Banner for Debugging -->
+        <div id="global-error-banner" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4 hidden" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span id="error-message" class="block sm:inline">An unexpected error occurred.</span>
+        </div>
+        
+        <div id="app-content"><!-- Main content is injected here --></div>
+        
+        <div id="sign-in-prompt" class="text-center py-16 card glass-card rounded-xl">
+            <h3 class="text-xl font-bold">Welcome to Shift Tracker</h3>
+            <p class="text-gray-600 mt-2">Please sign in or create an account.</p>
+        </div>
+    </div>
+    
+    <!-- Auth Overlay (Modified for Team Selection and Location Filter during Sign Up) -->
+    <div id="auth-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-50 opacity-0 overlay">
+        <div id="auth-card" class="glass-card w-full max-w-md bottom-sheet p-6">
+            <h2 class="text-2xl font-bold text-center mb-6">Sign In or Create Account</h2>
+            <div id="auth-error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4 hidden" role="alert"></div>
+            <div class="space-y-4">
+                <input type="email" id="email-input" placeholder="Email" class="glass-input w-full p-3 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="password-input" placeholder="Password" class="glass-input w-full p-3 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500">
+                
+                <!-- NEW: Sign-up specific fields -->
+                <div id="signup-fields" class="space-y-4 hidden">
+                    <!-- Location Filter Selection -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2 text-gray-700">Filter Location Access</label>
+                        <div class="flex space-x-2">
+                            <button type="button" data-location-filter="Sentry" class="filter-btn flex-1 p-2 rounded-lg border border-gray-300 bg-white/50 hover:bg-white/80 text-sm font-semibold text-gray-600 active:bg-blue-100 active:border-blue-500 active:text-blue-700">Sentry</button>
+                            <button type="button" data-location-filter="Foyer" class="filter-btn flex-1 p-2 rounded-lg border border-gray-300 bg-white/50 hover:bg-white/80 text-sm font-semibold text-gray-600 active:bg-blue-100 active:border-blue-500 active:text-blue-700">Foyer</button>
+                            <button type="button" data-location-filter="Both" class="filter-btn flex-1 p-2 rounded-lg border border-gray-300 bg-white/50 hover:bg-white/80 text-sm font-semibold text-gray-600 active:bg-blue-100 active:border-blue-500 active:text-blue-700 active">Both</button>
+                        </div>
+                        <input type="hidden" id="signup-location-filter" value="Both">
+                        <p class="text-xs text-gray-500 mt-1">This sets which teams/locations are visible to you.</p>
+                    </div>
+
+                    <!-- Placeholder for Team Pattern (Deferred - users set this later) -->
+                    <p class="text-sm font-medium text-gray-600">You can set your rotation pattern later in Advanced Tools.</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mt-6">
+                <button id="signin-btn" class="btn bg-blue-600 text-white font-bold py-3 rounded-lg">Sign In</button>
+                <button id="signup-btn" class="btn bg-green-600 text-white font-bold py-3 rounded-lg">Sign Up</button>
+            </div>
+             <button id="auth-cancel-btn" class="w-full text-center mt-4 text-gray-600 font-semibold py-2">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Main application UI, hidden by default -->
+    <div id="main-app-ui" class="hidden">
+        <!-- Logger Overlay -->
+        <div id="logger-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-40 opacity-0 overlay">
+            <div id="logger-card" class="glass-card w-full max-w-4xl max-h-[90vh] overflow-y-auto bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20 sticky top-0 glass-card z-10 rounded-t-2xl">
+                    <div class="flex items-center gap-2">
+                        <h1 id="logger-title" class="text-xl font-bold">Log a New Shift</h1>
+                        <button id="tools-button" class="text-gray-600 hover:text-black p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg></button>
+                    </div>
+                    <button id="logger-done-button" class="font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-white/50">Done</button>
+                </header>
+                <form id="shift-form">
+                    <div class="p-6"><div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="space-y-4"><div><label for="shift-date" class="block text-sm font-medium mb-2">Date</label><input type="date" id="shift-date" class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></div>
+                        
+                        <div id="shift-toggle-container">
+                            <label class="block text-sm font-medium mb-2">Shift</label>
+                            <div class="flex items-center gap-4 p-1 bg-white/30 rounded-lg">
+                                <button type="button" id="morning-shift-btn" class="flex-1 p-2 rounded-md font-semibold text-gray-600">Morning</button>
+                                <button type="button" id="night-shift-btn" class="flex-1 p-2 rounded-md font-semibold text-gray-600">Night</button>
+                            </div>
+                        </div>
+
+                        <div><label class="block text-sm font-medium mb-2">Team</label><div class="grid grid-cols-3 gap-2">
+                            <!-- Team Tabs are filtered here in JS: -->
+                            <button type="button" id="sentry-tab" class="team-selector-btn p-3 rounded-lg flex flex-col items-center justify-center active"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-700" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM10 14a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg><span class="text-sm font-semibold mt-1">Sentry</span></button>
+                            <button type="button" id="foyer-tab" class="team-selector-btn p-3 rounded-lg flex flex-col items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-700" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd" /></svg><span class="text-sm font-semibold mt-1">Foyer</span></button>
+                            <button type="button" id="others-tab" class="team-selector-btn p-3 rounded-lg flex flex-col items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-700" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg><span class="text-sm font-semibold mt-1">Others</span></button>
+                        </div></div></div><div class="space-y-4">
+                        
+                        <!-- Duty / Location Section -->
+                        <div id="duty-location-group">
+                            <label for="duty-location" class="block text-sm font-medium mb-2">Duty / Location</label>
+                            <select id="duty-location" class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></select>
+                            
+                            <!-- NEW: Free Text Input for Redeploy Location -->
+                            <input type="text" id="redeploy-location-input" placeholder="Enter AdHoc or Redeploy Details" 
+                                   class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mt-2 hidden">
+                        </div>
+                        
+                        <div><label class="block text-sm font-medium mb-2">Hours & Overtime</label><div class="flex items-center gap-4 p-3 bg-white/20 rounded-lg"><div class="flex-1"><label for="shift-hours" class="text-sm">Working Hours</label><input type="number" id="shift-hours" value="12" class="glass-input w-full mt-1 p-2 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></div><div class="flex items-center pt-5"><input type="checkbox" id="is-ot" class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-white/50"><label for="is-ot" class="ml-2 text-sm font-medium">OT</label></div></div></div></div></div></div>
+                </form>
+                <div class="p-6 pt-0">
+                    <button id="save-assignment-btn" class="btn w-full gradient-bg text-white font-bold py-3 px-4 rounded-lg shadow-lg">Log Assignment</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar View Overlay -->
+        <div id="calendar-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-40 opacity-0 overlay">
+            <div id="calendar-card" class="glass-card w-full max-w-4xl max-h-[90vh] overflow-y-auto bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20 sticky top-0 glass-card z-10 rounded-t-2xl">
+                    <h1 id="calendar-title" class="text-xl font-bold">Monthly Calendar</h1>
+                    <button id="calendar-close-button" class="font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-white/50">Close</button>
+                </header>
+                <div class="p-4 sm:p-6">
+                    <!-- Weekday headings -->
+                    <div id="calendar-weekdays" class="grid grid-cols-7 gap-2 mb-2">
+                        <!-- Weekdays will be injected here by JS -->
+                    </div>
+                    <!-- Day cells -->
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-3">
+                        <!-- Calendar days will be injected here by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. Manage Teams Overlay (Shared for Admin/User) -->
+        <div id="team-manager-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-50 opacity-0 overlay">
+             <div id="team-manager-card" class="glass-card w-full max-w-4xl bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20">
+                   <h1 id="team-manager-title" class="text-xl font-bold">Team & Pattern Selection</h1>
+                   <button id="team-manager-close-button" class="font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-white/50">Close</button>
+               </header>
+               <!-- Content injected by renderTeamManagerList based on isAdmin -->
+               <div id="team-manager-content"></div>
+           </div>
+        </div>
+        
+        <!-- 2. Edit Team Pattern Overlay (Visual Editor) -->
+        <div id="edit-team-pattern-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-50 opacity-0 overlay">
+             <div id="edit-team-pattern-card" class="glass-card w-full max-w-4xl max-h-[90vh] overflow-y-auto bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20">
+                   <h1 id="edit-team-title" class="text-xl font-bold">Edit Pattern: New Team</h1>
+                   <button id="edit-team-cancel-btn" class="font-semibold text-red-600 py-2 px-4 rounded-lg hover:bg-white/50">Cancel</button>
+               </header>
+               <div class="p-6 space-y-6">
+                    <div>
+                        <label for="team-name-input" class="block text-sm font-medium mb-1 text-gray-600">Team Name</label>
+                        <input type="text" id="team-name-input" placeholder="e.g., Alpha Team" class="glass-input w-full p-2.5 rounded-lg shadow-sm text-lg font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="pattern-length" class="block text-sm font-medium mb-1">Pattern Length</label>
+                            <input type="number" id="pattern-length" min="1" max="30" value="6" class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="pattern-anchor-date" class="block text-sm font-medium mb-1">Pattern Anchor Date</label>
+                            <input type="date" id="pattern-anchor-date" class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <p class="text-xs text-gray-600 mt-1">The "Day 1" of the rotation.</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-lg font-bold mb-3">Visual Pattern</label>
+                        <p class="text-sm text-gray-600 mb-4">Click the cells below to cycle through shift types (Morning, Night, OFF).</p>
+                        <div id="visual-pattern-grid" class="grid gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-6">
+                            <!-- Pattern cells injected here by JS -->
+                        </div>
+                    </div>
+
+                    <button id="save-team-pattern-btn" class="btn w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg">Save Changes</button>
+               </div>
+           </div>
+        </div>
+
+        <!-- Profile Settings Overlay -->
+        <div id="profile-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-50 opacity-0 overlay">
+            <div id="profile-card" class="glass-card w-full max-w-lg bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20 sticky top-0 glass-card z-10 rounded-t-2xl">
+                    <h1 class="text-xl font-bold">Profile Settings</h1>
+                    <button id="profile-cancel-btn" class="font-semibold text-red-600 py-2 px-4 rounded-lg hover:bg-white/50">Cancel</button>
+                </header>
+                <div class="p-6 space-y-6">
+                    <p class="text-sm text-gray-600">These details will be included in your generated reports.</p>
+                    <div>
+                        <label for="profile-name-input" class="block text-sm font-medium mb-1 text-gray-600">Full Name</label>
+                        <input type="text" id="profile-name-input" placeholder="Your Name" class="glass-input w-full p-2.5 rounded-lg shadow-sm">
+                    </div>
+                     <div>
+                        <label for="profile-employee-id-input" class="block text-sm font-medium mb-1 text-gray-600">Employee ID</label>
+                        <input type="text" id="profile-employee-id-input" placeholder="e.g., T13904" class="glass-input w-full p-2.5 rounded-lg shadow-sm">
+                    </div>
+                    <button id="save-profile-btn" class="btn w-full gradient-bg text-white font-bold py-3 px-4 rounded-lg shadow-lg">Save Profile Details</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tools Action Sheet Overlay -->
+        <div id="tools-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-50 opacity-0 overlay">
+             <div id="tools-card" class="glass-card w-full max-w-4xl bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20">
+                   <h1 class="text-xl font-bold">Advanced Tools</h1>
+                   <button id="tools-close-button" class="font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-white/50">Close</button>
+               </header>
+               <div class="p-6 space-y-4">
+                    <!-- NEW: Profile button -->
+                    <button id="profile-settings-btn" class="btn w-full bg-white/50 border border-purple-600 text-purple-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-white/80">Profile Settings</button>
+
+                    <!-- Updated button text and visibility logic in JS -->
+                    <button id="manage-teams-btn" class="btn w-full bg-white/50 border border-indigo-600 text-indigo-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-white/80">Team Settings</button>
+                    <button id="generate-report-btn" class="btn w-full bg-white/50 border border-blue-600 text-blue-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-white/80">Generate Report</button>
+                    <!-- Updated Import Buttons -->
+                    <button id="import-october-btn" class="btn w-full bg-white/50 border border-green-600 text-green-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-white/80">Import October 2025 Data</button>
+                    <button id="import-november-btn" class="btn w-full bg-white/50 border border-green-600 text-green-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-white/80">Import November 2025 Data</button>
+                    <button id="clear-history-btn" class="btn w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md shadow-md">Clear History</button>
+               </div>
+           </div>
+        </div>
+        
+        <!-- NEW: Report Generator Overlay -->
+        <div id="report-generator-overlay" class="fixed inset-0 bg-black bg-opacity-30 flex items-end justify-center hidden z-50 opacity-0 overlay">
+            <div id="report-card" class="glass-card w-full max-w-lg bottom-sheet">
+                <header class="flex justify-between items-center p-4 border-b border-white/20 sticky top-0 glass-card z-10 rounded-t-2xl">
+                    <h1 class="text-xl font-bold">Generate Custom Report</h1>
+                    <button id="report-cancel-btn" class="font-semibold text-red-600 py-2 px-4 rounded-lg hover:bg-white/50">Cancel</button>
+                </header>
+                <div class="p-6 space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Report Date Range</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="start-date-input" class="block text-xs font-medium mb-1 text-gray-600">Start Date (Inclusive)</label>
+                                <input type="date" id="start-date-input" class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="end-date-input" class="block text-xs font-medium mb-1 text-gray-600">End Date (Inclusive)</label>
+                                <input type="date" id="end-date-input" class="glass-input w-full p-2.5 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">The report will cover all shifts logged between these two dates.</p>
+                    </div>
+                    
+                    <button id="generate-custom-report-btn" class="btn w-full gradient-bg text-white font-bold py-3 px-4 rounded-lg shadow-lg">Generate Report</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Action Bar -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white/50 backdrop-blur-sm border-t border-white/30 p-4 z-30">
+            <div class="container mx-auto max-w-4xl">
+                <button id="log-new-shift-btn" class="btn w-full gradient-bg text-white font-bold py-3 px-4 rounded-full shadow-lg flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>Log New Shift</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-24 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg opacity-0 transform translate-y-10 transition-all duration-300 z-50"></div>
+
+    <script type="module">
+        // Import all necessary Firebase modules together to avoid variable reference issues during dynamic loading.
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, getDocs, updateDoc, setDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set log level to debug to help diagnose Firestore issues
+        setLogLevel('debug');
+
+        // --- GLOBAL ERROR HANDLER (For debugging white screens) ---
+        window.onerror = function(message, source, lineno, colno, error) {
+            const errorBanner = document.getElementById('global-error-banner');
+            const errorMessage = document.getElementById('error-message');
+            
+            if (errorMessage) {
+                errorMessage.textContent = `JS Error: ${message} (Line ${lineno})`;
+                if (errorBanner) {
+                    errorBanner.classList.remove('hidden');
+                }
+            }
+            console.error("Uncaught Global Error:", message, source, lineno, colno, error);
+            // Returning true prevents the default browser error handling, often desirable.
+            return true;
+        };
+
+
+        // --- CONFIG AND INITIALIZATION ---
+        // NOTE: In a real environment, __firebase_config and __app_id would be used here.
+        const firebaseConfig = {
+          apiKey: "AIzaSyD7EdbBA4e04e6XvxnPgFdqZo_9squYMg0",
+          authDomain: "shift-tracker-b7879.firebaseapp.com",
+          projectId: "shift-tracker-b7879",
+          // Use the default storage bucket for this project.
+          storageBucket: "shift-tracker-b7879.firebasestorage.app",
+          messagingSenderId: "619413261457",
+          appId: "1:619413261457:web:71bb4d19745a64aab20330",
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- GLOBAL STATE ---
+        const CONTRACTUAL_HOURS = 240; // Fixed contractual planned hours
+        let userId = null;
+        let shiftsUnsubscribe = null;
+        let teamsUnsubscribe = null;
+        let profileUnsubscribe = null;
+        let allShifts = [];
+        let allTeams = []; // [{ id, teamName, anchor, patternLength, pattern: [] }]
+        // UPDATED: Added user profile fields here
+        let userProfile = { 
+            userTeamId: null, 
+            userLocationFilter: 'Both',
+            userName: '',         // NEW: User's full name
+            employeeId: '',       // NEW: User's employee ID
+        }; 
+        let isAdmin = false; 
+
+        let editingTeam = null; 
+        
+        let displayedDate = new Date();
+        let selectedShift = 'Morning';
+        let selectedTeam = 'Sentry';
+        let editingShiftId = null;
+        let clearConfirmationTimeout = null;
+        
+        // --- CONSTANTS ---
+        const REDEPLOY_MARKER = 'Redeploy location';
+        const ADHOC_MARKER = 'AdHoc Details'; 
+        const OFF_DAY_MARKER = 'Off Day'; 
+        const DUTY_LOCATIONS = { 
+            Sentry: ['E1', 'GUARD HOUSE', 'ECHO 3', 'PATROL 1', 'OE / STANDBY', 'ECHO 2', 'PATROL 2', 'N1 (CNB DST)'], 
+            Foyer: ['VISITOR X-RAY', 'STAFF X-RAY', 'N1 (CNB DST)', 'OE / STANDBY', 'VERTICAL PROWLER'], 
+            Others: ['Training', 'AL', 'MC', OFF_DAY_MARKER, REDEPLOY_MARKER, ADHOC_MARKER] 
+        };
+        const SHIFT_TEAMS = ['Sentry', 'Foyer', 'Others'];
+        const SHIFT_TYPES = ['M', 'N', 'OFF']; 
+        const LOCATION_FILTERS = ['Sentry', 'Foyer', 'Both'];
+        const LOCATION_COLORS = { 
+            'E1': { bg: 'bg-blue-100', text: 'text-blue-800', hex: '#dbeafe' }, 
+            'GUARD HOUSE': { bg: 'bg-emerald-100', text: 'text-emerald-800', hex: '#d1fae5' }, 
+            'ECHO 3': { bg: 'bg-orange-100', text: 'text-orange-800', hex: '#ffedd5' }, 
+            'PATROL 1': { bg: 'bg-violet-100', text: 'text-violet-800', hex: '#ede9fe' }, 
+            'OE / STANDBY': { bg: 'bg-gray-200', text: 'text-gray-800', hex: '#e5e7eb' }, 
+            'ECHO 2': { bg: 'bg-pink-100', text: 'text-pink-800', hex: '#fce7f3' }, 
+            'PATROL 2': { bg: 'bg-teal-100', text: 'text-teal-800', hex: '#ccfbf1' }, 
+            'VISITOR X-RAY': { bg: 'bg-red-100', text: 'text-red-800', hex: '#fee2e2' }, 
+            'STAFF X-RAY': { bg: 'bg-amber-100', text: 'text-amber-800', hex: '#fef3c7' }, 
+            'N1 (CNB DST)': { bg: 'bg-indigo-100', text: 'text-indigo-800', hex: '#e0e7ff' }, 
+            'VERTICAL PROWLER': { bg: 'bg-cyan-100', text: 'text-cyan-800', hex: '#cffafe' }, 
+            'Training': { bg: 'bg-lime-100', text: 'text-lime-800', hex: '#f0fdf4' }, 
+            'AdHoc': { bg: 'bg-fuchsia-100', text: 'text-fuchsia-800', hex: '#fae8ff' }, 
+            'AL': { bg: 'bg-sky-100', text: 'text-sky-800', hex: '#e0f2fe' }, 
+            'MC': { bg: 'bg-rose-100', text: 'text-rose-800', hex: '#ffe4e6' }, 
+            'OT': { bg: 'bg-amber-100', text: 'text-amber-800', hex: '#fef3c7' },
+            [OFF_DAY_MARKER]: { bg: 'bg-green-100', text: 'text-green-800', hex: '#dcfce7' },
+            [REDEPLOY_MARKER]: { bg: 'bg-purple-100', text: 'text-purple-800', hex: '#f3e8ff' },
+            [ADHOC_MARKER]: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-800', hex: '#fae8ff' },
+            'FIRST AID': { bg: 'bg-red-100', text: 'text-red-800', hex: '#fee2e2' },
+            'AED': { bg: 'bg-red-100', text: 'text-red-800', hex: '#fee2e2' },
+            'CNB': { bg: 'bg-red-100', text: 'text-red-800', hex: '#fee2e2' }
+        };
+        const ICONS = { 
+            morning: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-500 shift-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>`, 
+            night: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-700 shift-icon night-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" transform="translate(0, 0)"></path></svg>`, 
+            others: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500 shift-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>`,
+            sentry: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1.5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM10 14a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>`, 
+            foyer: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1.5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd" /></svg>` 
+        };
+        const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+        const ADMIN_EMAILS = [
+            'tvarajan7@gmail.com'
+        ];
+        
+        // Path for team patterns.
+        let SHARED_TEAMS_PATH = '';
+
+        // --- AUTH & UI MANAGEMENT ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                userId = user.uid;
+                isAdmin = ADMIN_EMAILS.includes(user.email);
+                // Assign the shared teams path under the authenticated user's document.
+                SHARED_TEAMS_PATH = `users/${user.uid}/teams`;
+                updateUIForUser(user);
+                setupDataListeners(); 
+            } else {
+                userId = null;
+                isAdmin = false; 
+                // Clear the shared teams path upon sign-out
+                SHARED_TEAMS_PATH = '';
+                if (shiftsUnsubscribe) shiftsUnsubscribe();
+                if (teamsUnsubscribe) teamsUnsubscribe();
+                if (profileUnsubscribe) profileUnsubscribe();
+                allShifts = [];
+                allTeams = [];
+                userProfile = { userTeamId: null, userLocationFilter: 'Both', userName: '', employeeId: '' }; 
+                updateUIForGuest();
+            }
+        });
+
+        function updateUIForUser(user) {
+            document.getElementById('user-display').textContent = user.email || 'Anonymous';
+            document.getElementById('auth-button').textContent = 'Sign Out';
+            document.getElementById('sign-in-prompt').classList.add('hidden');
+            document.getElementById('main-app-ui').classList.remove('hidden');
+            
+            // Render main UI structure with SEARCH BAR ADDED
+            document.getElementById('app-content').innerHTML = `
+                <div class="space-y-6">
+                    <div class="card glass-card rounded-xl p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <button id="prev-month-btn" class="p-2 rounded-full hover:bg-white/50"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
+                            <h3 id="month-display" class="text-lg font-bold text-center"></h3>
+                            <button id="next-month-btn" class="p-2 rounded-full hover:bg-white/50"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div><p class="text-sm text-gray-700">Planned Hours</p><p id="planned-hours" class="text-xl font-bold text-blue-700">0</p></div>
+                            <div><p class="text-sm text-gray-700">Logged Hours</p><p id="logged-hours" class="text-xl font-bold text-indigo-700">0</p></div>
+                            <div><p class="text-sm text-gray-700">Overtime Hours</p><p id="ot-hours" class="text-xl font-bold text-amber-600">0</p></div>
+                        </div>
+                        <div class="mt-4">
+                            <button id="calendar-view-btn" class="btn w-full bg-white/50 border border-blue-600 text-blue-600 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-white/80 flex items-center justify-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                </svg>
+                                Calendar View
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Search Filter Input -->
+                    <div class="mb-2">
+                        <input type="text" id="history-search" placeholder="Search history by location (e.g. E1, Patrol)..." class="glass-input w-full p-3 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <p id="search-stats" class="text-sm text-blue-800 font-semibold mt-2 text-right hidden"></p>
+                    </div>
+
+                    <div id="history-list" class="space-y-0"></div>
+                    <p id="no-history" class="text-center text-gray-700 py-8 card glass-card rounded-xl">No shifts recorded for this month.</p>
+                </div>`;
+            
+            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
+            document.getElementById('calendar-view-btn').addEventListener('click', openCalendarView);
+
+            // NEW: Add listener for search
+            document.getElementById('history-search').addEventListener('input', () => renderHistory());
+            
+            // Re-render tools button visibility based on isAdmin state
+            const manageTeamsBtn = document.getElementById('manage-teams-btn');
+            if (manageTeamsBtn) {
+                // If not admin, change text to reflect user access
+                if (!isAdmin) {
+                    manageTeamsBtn.textContent = 'Team & Pattern Selection';
+                } else {
+                    manageTeamsBtn.textContent = 'Manage Teams & Patterns';
+                }
+                manageTeamsBtn.classList.remove('hidden'); // Always visible now
+                // The 'Clear History' button remains admin-only (visibility handled by handleClearHistory check)
+            }
+
+            renderHistory();
+        }
+
+        function updateUIForGuest() {
+            document.getElementById('user-display').textContent = '';
+            document.getElementById('auth-button').textContent = 'Sign In';
+            document.getElementById('sign-in-prompt').classList.remove('hidden');
+            document.getElementById('main-app-ui').classList.add('hidden');
+            document.getElementById('app-content').innerHTML = '';
+        }
+
+        // --- FIRESTORE ---
+        function setupDataListeners() {
+            // Stop any existing listeners
+            if (shiftsUnsubscribe) shiftsUnsubscribe();
+            if (teamsUnsubscribe) teamsUnsubscribe();
+            if (profileUnsubscribe) profileUnsubscribe();
+            if (!userId) return;
+
+            // 1. Listener for shifts (PRIVATE)
+            const shiftsCollectionRef = collection(db, `users/${userId}/shifts`);
+            shiftsUnsubscribe = onSnapshot(shiftsCollectionRef, (querySnapshot) => {
+                const fetchedShifts = [];
+                querySnapshot.forEach((doc) => fetchedShifts.push({ id: doc.id, ...doc.data() }));
+                allShifts = fetchedShifts.sort((a, b) => new Date(b.rawDate + 'T00:00:00') - new Date(a.rawDate + 'T00:00:00'));
+                renderHistory();
+            }, (error) => {
+                console.error("Error listening to shifts:", error);
+                showToast("Error fetching shift data.", true);
+            });
+            
+            // 2. Listener for Teams
+            const teamsCollectionRef = collection(db, `users/${userId}/teams`);
+            teamsUnsubscribe = onSnapshot(teamsCollectionRef, (querySnapshot) => {
+                allTeams = [];
+                querySnapshot.forEach((docSnap) => {
+                    allTeams.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                
+                // Detailed logging for team fetch success/failure state:
+                if (allTeams.length === 0) {
+                    console.warn(`[Teams Fetch] Success, but 0 teams found in path: users/${userId}/teams.`);
+                    // Only show the user the toast if they expect to see teams (can create their own)
+                    showToast(`No teams found in your data path.`, true);
+                } else {
+                    console.log(`[Teams Fetch] Success. Found ${allTeams.length} teams in path: users/${userId}/teams`);
+                    // Clear any lingering error toasts about team data
+                    if (document.getElementById('toast').textContent.includes("Error fetching teams data")) {
+                         document.getElementById('toast').style.opacity = '0';
+                    }
+                }
+                
+                // Re-render UI elements that depend on the team list
+                if (!document.getElementById('team-manager-overlay').classList.contains('hidden')) {
+                    renderTeamManagerList();
+                }
+                renderHistory(); // Re-render history/calendar based on new teams data
+            }, (error) => {
+                console.error(`[Teams Fetch] FAILED from path: users/${userId}/teams`, error);
+                showToast("Error fetching teams data. Check console for details (likely security rules).", true);
+            });
+
+
+            // 3. Listener for User Profile (PRIVATE)
+            const profileDocRef = doc(db, `users/${userId}/settings`, 'profile');
+            profileUnsubscribe = onSnapshot(profileDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    userProfile = {
+                        userTeamId: docSnap.data().userTeamId || null,
+                        userLocationFilter: docSnap.data().userLocationFilter || 'Both',
+                        // UPDATED: Capture name and ID from profile settings
+                        userName: docSnap.data().userName || '',
+                        employeeId: docSnap.data().employeeId || '', 
+                    };
+                } else {
+                    // Initialize empty profile if none exists
+                    userProfile = { userTeamId: null, userLocationFilter: 'Both', userName: '', employeeId: '' };
+                }
+                // Update profile inputs if modal is open
+                if (!document.getElementById('profile-overlay').classList.contains('hidden')) {
+                     loadProfileSettings();
+                }
+                renderHistory(); 
+            }, (error) => {
+                console.error("Error listening to profile:", error);
+            });
+        }
+
+        // --- PROFILE SETTINGS HANDLERS (NEW) ---
+
+        function openProfileSettings() {
+            loadProfileSettings();
+            toggleOverlay('profile-overlay');
+            toggleOverlay('tools-overlay');
+        }
+        
+        function loadProfileSettings() {
+            document.getElementById('profile-name-input').value = userProfile.userName;
+            document.getElementById('profile-employee-id-input').value = userProfile.employeeId;
+        }
+
+        async function saveProfileSettings() {
+            if (!userId) return showToast('You must be signed in.', true); 
+            
+            const userName = document.getElementById('profile-name-input').value.trim();
+            const employeeId = document.getElementById('profile-employee-id-input').value.trim();
+
+            const profileDocRef = doc(db, `users/${userId}/settings`, 'profile');
+            try {
+                await setDoc(profileDocRef, { userName, employeeId }, { merge: true });
+                showToast('Profile details saved successfully!');
+                toggleOverlay('profile-overlay');
+            } catch (error) {
+                console.error("Error saving profile:", error);
+                showToast('Failed to save profile details.', true);
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUIForGuest(); 
+            // Handle Auth Overlay visibility and setup
+            document.getElementById('auth-button').addEventListener('click', () => { 
+                if (auth.currentUser) {
+                    signOut(auth);
+                } else {
+                    toggleOverlay('auth-overlay');
+                    // Setup UI for Sign In by default
+                    document.getElementById('signup-fields').classList.add('hidden');
+                }
+            });
+            document.getElementById('auth-cancel-btn').addEventListener('click', () => toggleOverlay('auth-overlay'));
+            
+            document.getElementById('signin-btn').addEventListener('click', handleSignIn);
+            document.getElementById('signup-btn').addEventListener('click', () => {
+                // Toggle extra fields for Sign Up
+                const fields = document.getElementById('signup-fields');
+                const passwordInput = document.getElementById('password-input');
+                
+                if (fields.classList.contains('hidden')) {
+                    // First click: show signup fields
+                    fields.classList.remove('hidden');
+                    passwordInput.focus();
+                } else {
+                    // Second click (or first click after fields are visible): attempt sign up
+                    handleSignUp();
+                }
+            });
+
+            // NEW: Location Filter button handlers
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    document.getElementById('signup-location-filter').value = this.dataset.locationFilter;
+                });
+            });
+
+
+            document.getElementById('log-new-shift-btn').addEventListener('click', () => prepareNewShift(null, null));
+            document.getElementById('logger-done-button').addEventListener('click', () => toggleOverlay('logger-overlay'));
+            document.getElementById('tools-button').addEventListener('click', () => toggleOverlay('tools-overlay'));
+            document.getElementById('tools-close-button').addEventListener('click', () => toggleOverlay('tools-overlay'));
+            document.getElementById('save-assignment-btn').addEventListener('click', saveAssignment);
+            
+            // UPDATED: generateReport now opens the date selection modal
+            document.getElementById('generate-report-btn').addEventListener('click', openReportGenerator);
+            
+            // NEW: Profile Settings listeners
+            document.getElementById('profile-settings-btn').addEventListener('click', openProfileSettings);
+            document.getElementById('save-profile-btn').addEventListener('click', saveProfileSettings);
+            document.getElementById('profile-cancel-btn').addEventListener('click', () => toggleOverlay('profile-overlay'));
+
+            // NEW: Report Generator modal listeners
+            document.getElementById('report-cancel-btn').addEventListener('click', () => toggleOverlay('report-generator-overlay'));
+            document.getElementById('generate-custom-report-btn').addEventListener('click', generateCustomReport);
+
+            document.getElementById('clear-history-btn').addEventListener('click', handleClearHistory);
+            document.getElementById('morning-shift-btn').addEventListener('click', () => selectShift('Morning'));
+            document.getElementById('night-shift-btn').addEventListener('click', () => selectShift('Night'));
+            
+            // Team selectors need to be initialized in JS after login
+            document.getElementById('sentry-tab').addEventListener('click', () => selectTeam('Sentry'));
+            document.getElementById('foyer-tab').addEventListener('click', () => selectTeam('Foyer'));
+            document.getElementById('others-tab').addEventListener('click', () => selectTeam('Others'));
+            
+            // Listener for the duty location change to show/hide free text input
+            document.getElementById('duty-location').addEventListener('change', updateRedeployInputVisibility);
+
+            // Import button listeners (October and NEW November)
+            // CRITICAL: Call the now inline import functions directly
+            document.getElementById('import-october-btn').addEventListener('click', (e) => handleImportMonth(e, importOctoberShifts, 'October'));
+            document.getElementById('import-november-btn').addEventListener('click', (e) => handleImportMonth(e, importNovemberShifts, 'November'));
+
+            // Calendar listeners
+            document.getElementById('calendar-close-button').addEventListener('click', () => toggleOverlay('calendar-overlay'));
+
+            // Team Manager listeners
+            document.getElementById('manage-teams-btn').addEventListener('click', openTeamManager);
+            document.getElementById('team-manager-close-button').addEventListener('click', () => toggleOverlay('team-manager-overlay'));
+            
+            // Edit Team Pattern listeners
+            document.getElementById('edit-team-cancel-btn').addEventListener('click', () => toggleOverlay('edit-team-pattern-overlay'));
+            document.getElementById('save-team-pattern-btn').addEventListener('click', saveTeamPattern);
+            document.getElementById('pattern-length').addEventListener('input', handlePatternLengthChange);
+            document.getElementById('visual-pattern-grid').addEventListener('click', handlePatternCellClick);
+        });
+
+        // --- AUTH HANDLERS ---
+        async function handleSignIn() {
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            const authErrorDiv = document.getElementById('auth-error');
+            authErrorDiv.classList.add('hidden');
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                toggleOverlay('auth-overlay');
+            } catch (error) {
+                authErrorDiv.textContent = error.message;
+                authErrorDiv.classList.remove('hidden');
+            }
+        }
+        async function handleSignUp() {
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            const locationFilter = document.getElementById('signup-location-filter').value; 
+            const authErrorDiv = document.getElementById('auth-error');
+            authErrorDiv.classList.add('hidden');
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                
+                // Save location filter and default empty profile fields immediately
+                const profileDocRef = doc(db, `users/${userCredential.user.uid}/settings`, 'profile');
+                await setDoc(profileDocRef, { 
+                    userLocationFilter: locationFilter,
+                    userName: '',
+                    employeeId: '',
+                }, { merge: true });
+
+                toggleOverlay('auth-overlay');
+                
+                if (ADMIN_EMAILS.includes(userCredential.user.email)) {
+                    showToast('Sign up successful! You are an Admin.', false);
+                } else {
+                    showToast(`Sign up successful! Your location filter is set to ${locationFilter}.`, false);
+                }
+            } catch (error) {
+                authErrorDiv.textContent = error.message;
+                authErrorDiv.classList.remove('hidden');
+            }
+        }
+        
+        // --- HELPER FUNCTIONS ---
+        function toggleOverlay(overlayId) {
+            const overlay = document.getElementById(overlayId);
+            if (overlay.classList.contains('hidden')) {
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 400);
+            }
+        }
+
+        function changeMonth(direction) {
+            displayedDate.setMonth(displayedDate.getMonth() + direction);
+            renderHistory();
+        }
+
+        /**
+         * Checks if a shift's team is relevant to the user's location filter.
+         */
+        function isTeamRelevant(team) {
+            const filter = userProfile.userLocationFilter;
+            if (filter === 'Both') {
+                return true;
+            } else if (filter === 'Sentry') {
+                return team === 'Sentry' || team === 'Others';
+            } else if (filter === 'Foyer') {
+                return team === 'Foyer' || team === 'Others';
+            }
+            return false;
+        }
+
+
+        /**
+         * Toggles the visibility of shift details and rotates the chevron icon.
+         */
+        window.toggleShiftDetails = (shiftId) => {
+            const detailsElement = document.getElementById(`details-${shiftId}`);
+            const chevronElement = document.getElementById(`chevron-${shiftId}`);
+
+            if (detailsElement.classList.contains('hidden')) {
+                detailsElement.classList.remove('hidden');
+                chevronElement.classList.add('rotate-180');
+            } else {
+                detailsElement.classList.add('hidden');
+                chevronElement.classList.remove('rotate-180');
+            }
+        }
+
+        function renderHistory() {
+            if (!document.getElementById('month-display')) return;
+            const year = displayedDate.getFullYear();
+            const month = displayedDate.getMonth();
+            document.getElementById('month-display').textContent = displayedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            
+            const activeTeamPattern = getActiveTeamPattern();
+
+            // UPDATED: Apply location filter here
+            const filteredShifts = allShifts.filter(s => isTeamRelevant(s.team));
+
+            const shiftsForMonth = filteredShifts.filter(s => {
+                const shiftDate = new Date(s.rawDate + 'T00:00:00');
+                return shiftDate.getFullYear() === year && shiftDate.getMonth() === month;
+            });
+            
+            // --- NEW CALCULATION LOGIC ---
+            const loggedHours = shiftsForMonth.reduce((acc, s) => acc + s.hours, 0);
+            const plannedHours = CONTRACTUAL_HOURS; // Fixed based on request
+            const otHours = Math.max(0, loggedHours - CONTRACTUAL_HOURS); // Logged - Planned = OT (if positive)
+            // --- END NEW CALCULATION LOGIC ---
+            
+            document.getElementById('planned-hours').textContent = plannedHours;
+            document.getElementById('logged-hours').textContent = loggedHours;
+            document.getElementById('ot-hours').textContent = otHours;
+
+            // --- NEW: Search Filtering Logic ---
+            const searchInput = document.getElementById('history-search');
+            const searchStats = document.getElementById('search-stats');
+            let displayedShifts = shiftsForMonth;
+            
+            if (searchInput && searchInput.value.trim() !== '') {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+                displayedShifts = shiftsForMonth.filter(s => {
+                    const loc = s.location.toLowerCase();
+                    const team = s.team.toLowerCase();
+                    // Include checks against sanitized location names (removing prefixes for search)
+                    const cleanLoc = loc.replace('adhoc_', '').replace('redeploy_', '');
+                    return loc.includes(searchTerm) || cleanLoc.includes(searchTerm) || team.includes(searchTerm);
+                });
+                
+                // Update search stats
+                if (displayedShifts.length > 0) {
+                     const totalSearchHours = displayedShifts.reduce((acc, s) => acc + s.hours, 0);
+                     searchStats.textContent = `Found ${displayedShifts.length} shifts matching "${searchInput.value}" (${totalSearchHours} hrs)`;
+                     searchStats.classList.remove('hidden', 'text-red-500');
+                     searchStats.classList.add('text-blue-800');
+                } else {
+                     searchStats.textContent = `No shifts found matching "${searchInput.value}"`;
+                     searchStats.classList.remove('hidden', 'text-blue-800');
+                     searchStats.classList.add('text-red-500');
+                }
+            } else {
+                if (searchStats) searchStats.classList.add('hidden');
+            }
+
+
+            const historyList = document.getElementById('history-list');
+            const noHistory = document.getElementById('no-history');
+            
+            // Show no history only if there are NO shifts for the month at all, OR if search yields nothing
+            if (shiftsForMonth.length === 0) {
+                 noHistory.style.display = 'block';
+                 noHistory.textContent = 'No shifts recorded for this month.';
+                 historyList.style.display = 'none';
+            } else if (displayedShifts.length === 0) {
+                 // Shifts exist, but search filtered them all out
+                 noHistory.style.display = 'none'; // Hide the generic "no history" message
+                 historyList.innerHTML = ''; // Clear list
+                 historyList.style.display = 'block';
+            } else {
+                 noHistory.style.display = 'none';
+                 historyList.style.display = 'block';
+            }
+            
+            const sortedList = [...displayedShifts].sort((a, b) => new Date(b.rawDate) - new Date(b.rawDate));
+
+            // Don't render empty list if we already handled empty state
+            if (sortedList.length === 0 && shiftsForMonth.length > 0) return; 
+
+            const shiftsHTML = sortedList.map(shift => {
+                // Determine color: if location is Redeploy, use a generic color, otherwise look up.
+                let displayLocation = shift.location;
+                let colorKey = shift.location;
+                
+                if (displayLocation.startsWith('AdHoc_')) {
+                    // For display outside of calendar, show AdHoc prefix cleanly
+                    displayLocation = `AdHoc: ${displayLocation.replace('AdHoc_', '')}`;
+                    colorKey = ADHOC_MARKER;
+                } else if (displayLocation.startsWith('Redeploy_')) {
+                    displayLocation = `Redeploy: ${displayLocation.replace('Redeploy_', '')}`;
+                    colorKey = REDEPLOY_MARKER;
+                }
+                
+                const colorInfo = LOCATION_COLORS[colorKey] || LOCATION_COLORS[REDEPLOY_MARKER] || { bg: 'bg-gray-100', text: 'text-gray-800' };
+                
+                let shiftIcon;
+                if (shift.shift === 'Morning') {
+                    shiftIcon = ICONS.morning;
+                } else if (shift.shift === 'Night') {
+                    shiftIcon = ICONS.night;
+                } else {
+                    shiftIcon = ICONS.others;
+                }
+
+                const shiftDate = new Date(shift.rawDate + 'T00:00:00');
+
+                // Added shift.hours display to the summary line
+                const hoursDisplay = `<span class="text-xs font-bold text-gray-700">${shift.hours}h</span>`;
+
+
+                return `<div class="shift-entry border-b border-white/20 last:border-b-0">
+                    <div class="flex items-center justify-between p-3 cursor-pointer hover:bg-white/30" onclick="window.toggleShiftDetails('${shift.id}')">
+                        <div class="flex items-center gap-4 flex-grow">
+                            <div class="flex-shrink-0 text-center w-14">
+                                <p class="font-bold text-lg">${shiftDate.getDate()}</p>
+                                <p class="text-xs text-gray-600 uppercase">${shiftDate.toLocaleDateString('en-US', { weekday: 'short' })}</p>
+                            </div>
+                            <div class="pl-4 border-l border-white/20">${shiftIcon}</div>
+                            <span class="location-tag font-bold ${colorInfo.bg} ${colorInfo.text}">${displayLocation}</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            ${hoursDisplay}
+                            ${shift.isOT ? `<span class="ot-tag bg-amber-100 text-amber-800">OT</span>` : '<span class="w-10"></span>'}
+                            <svg id="chevron-${shift.id}" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                    </div>
+                    <div id="details-${shift.id}" class="hidden p-3 pt-0 pl-24 bg-black/5">
+                        <div class="space-y-2 text-sm">
+                            <p class="font-medium text-gray-700">${shiftDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                            
+                            <p class="font-semibold">${shift.shift} (${shift.shiftTime})</p>
+                            
+                            <div class="flex items-center text-gray-600">
+                                <span>${shift.hours} hrs</span>
+                                <span class="mx-2">|</span>
+                                ${ICONS[shift.team.toLowerCase()]}
+                                <span>${shift.team === 'Others' ? 'Duty' : shift.team + ' Team'}</span>
+                            </div>
+                            <div class="flex items-center gap-4 mt-2">
+                                <button onclick="window.prepareEditShift('${shift.id}')" class="text-blue-500 hover:text-blue-700 font-semibold flex items-center gap-1 text-xs">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>Edit
+                                </button>
+                                <button onclick="window.deleteShift('${shift.id}')" class="text-red-500 hover:text-red-700 font-semibold flex items-center gap-1 text-xs">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            historyList.innerHTML = `<div class="card glass-card rounded-xl overflow-hidden">${shiftsHTML}</div>`;
+
+            if (!document.getElementById('calendar-overlay').classList.contains('hidden')) {
+                renderCalendarView();
+            }
+        }
+        
+        /**
+         * Prepares the logger modal for editing an existing shift.
+         */
+        window.prepareEditShift = (shiftId) => { 
+            const shiftToEdit = allShifts.find(s => s.id === shiftId); 
+            if (!shiftToEdit) return; 
+            
+            editingShiftId = shiftId; 
+            document.getElementById('shift-date').value = shiftToEdit.rawDate; 
+            
+            // Re-render tabs based on current filter BEFORE selecting the team
+            renderLoggerTeamTabs(); 
+
+            selectTeam(shiftToEdit.team);
+            selectShift(shiftToEdit.shift);
+            
+            setTimeout(() => { 
+                const dutyLocation = document.getElementById('duty-location');
+                const redeployInput = document.getElementById('redeploy-location-input');
+                const relevantLocations = DUTY_LOCATIONS[shiftToEdit.team] || DUTY_LOCATIONS['Others'];
+                
+                let locationFound = false;
+                let savedLocation = shiftToEdit.location;
+
+                // 1. Check if the saved location is one of the predefined list options
+                if (relevantLocations.includes(savedLocation)) {
+                    dutyLocation.value = savedLocation; 
+                    redeployInput.classList.add('hidden');
+                    locationFound = true;
+                } 
+                // 2. Check if the saved location is AdHoc_FreeText (starts with prefix)
+                else if (savedLocation.startsWith('AdHoc_') && shiftToEdit.team === 'Others') {
+                     const freeText = savedLocation.replace('AdHoc_', '');
+                     dutyLocation.value = ADHOC_MARKER;
+                     redeployInput.value = freeText;
+                     redeployInput.classList.remove('hidden');
+                     locationFound = true;
+                } 
+                 // 3. Check if saved location is Redeploy_FreeText
+                else if (savedLocation.startsWith('Redeploy_') && shiftToEdit.team === 'Others') {
+                     const freeText = savedLocation.replace('Redeploy_', '');
+                     dutyLocation.value = REDEPLOY_MARKER;
+                     redeployInput.value = freeText;
+                     redeployInput.classList.remove('hidden');
+                     locationFound = true;
+                }
+                
+                if (!locationFound) {
+                    // Default to first option and hide redeploy input if not found/relevant
+                    dutyLocation.value = dutyLocation.options[0].value; 
+                    redeployInput.classList.add('hidden');
+                    showToast(`Location "${shiftToEdit.location}" not found for team "${shiftToEdit.team}". Defaulting to first option.`, true);
+                }
+                
+                // Ensure placeholder updates based on final selection
+                updateRedeployInputVisibility(); 
+                
+            }, 50); 
+            
+            document.getElementById('shift-hours').value = shiftToEdit.hours; 
+            document.getElementById('is-ot').checked = shiftToEdit.isOT; 
+            document.getElementById('logger-title').textContent = 'Edit Shift'; 
+            document.getElementById('save-assignment-btn').textContent = 'Update Shift'; 
+            toggleOverlay('logger-overlay'); 
+        };
+
+        /**
+         * Deletes a shift entry immediately without confirmation.
+         */
+        window.deleteShift = async (shiftId) => { 
+            if (!userId) {
+                showToast('You must be signed in to delete entries.', true);
+                return;
+            }
+            try { 
+                await deleteDoc(doc(db, `users/${userId}/shifts`, shiftId)); 
+                window.toggleShiftDetails(shiftId);
+                showToast('Shift entry deleted successfully.'); 
+            } catch (error) { 
+                console.error("Error deleting document: ", error); 
+                showToast('Failed to delete shift entry.', true); 
+            } 
+        };
+
+        function prepareNewShift(date, shiftType) {
+            editingShiftId = null;
+            document.getElementById('shift-form').reset();
+            document.getElementById('redeploy-location-input').classList.add('hidden'); // Hide free text input on reset
+            document.getElementById('logger-title').textContent = 'Log a New Shift';
+            document.getElementById('save-assignment-btn').textContent = 'Log Assignment';
+            
+            if (date) {
+                document.getElementById('shift-date').value = date;
+            } else {
+                document.getElementById('shift-date').value = new Date().toISOString().split('T')[0];
+            }
+            
+            // NEW: Render logger tabs based on filter
+            renderLoggerTeamTabs(); 
+            
+            // Determine initial team selection based on filter
+            let initialTeam = 'Others';
+            if (userProfile.userLocationFilter === 'Sentry' && !document.getElementById('sentry-tab').classList.contains('hidden')) {
+                initialTeam = 'Sentry';
+            } else if (userProfile.userLocationFilter === 'Foyer' && !document.getElementById('foyer-tab').classList.contains('hidden')) {
+                initialTeam = 'Foyer';
+            } else if (userProfile.userLocationFilter === 'Both') {
+                initialTeam = 'Sentry';
+            }
+
+
+            if (shiftType === 'OFF_DAY_OT') {
+                selectTeam('Others');
+                selectShift('Morning'); 
+                setTimeout(() => { 
+                    // Select OT in dropdown
+                    document.getElementById('duty-location').value = 'OT'; 
+                    document.getElementById('is-ot').checked = true;
+                    document.getElementById('shift-hours').value = 0; 
+                    updateRedeployInputVisibility();
+                }, 0);
+            } else if (shiftType) { 
+                selectTeam(initialTeam); 
+                selectShift(shiftType);
+                document.getElementById('shift-hours').value = 12; 
+                updateRedeployInputVisibility();
+            } else {
+                selectTeam(initialTeam); 
+                selectShift('Morning');
+                document.getElementById('shift-hours').value = 12; 
+                updateRedeployInputVisibility();
+            }
+            
+            toggleOverlay('logger-overlay');
+        }
+
+        // NEW: Function to filter team tabs in the logger based on user profile
+        function renderLoggerTeamTabs() {
+            const filter = userProfile.userLocationFilter;
+            
+            const sentryTab = document.getElementById('sentry-tab');
+            const foyerTab = document.getElementById('foyer-tab');
+            const othersTab = document.getElementById('others-tab');
+
+            if (filter === 'Sentry') {
+                sentryTab.classList.remove('hidden');
+                foyerTab.classList.add('hidden');
+                othersTab.classList.remove('hidden');
+            } else if (filter === 'Foyer') {
+                sentryTab.classList.add('hidden');
+                foyerTab.classList.remove('hidden');
+                othersTab.classList.remove('hidden');
+            } else { // Both
+                sentryTab.classList.remove('hidden');
+                foyerTab.classList.remove('hidden');
+                othersTab.classList.remove('hidden');
+            }
+            
+            // Ensure a visible tab is selected if the currently selected one is hidden
+            if (selectedTeam === 'Sentry' && filter === 'Foyer') {
+                selectedTeam = 'Foyer';
+            } else if (selectedTeam === 'Foyer' && filter === 'Sentry') {
+                selectedTeam = 'Sentry';
+            } else if (selectedTeam === 'Others') {
+                // If Others is selected, it should remain selected unless explicitly changed.
+            } else {
+                // Default selection if current selection is invalid
+                if (filter === 'Sentry' || filter === 'Both') selectedTeam = 'Sentry';
+                else if (filter === 'Foyer') selectedTeam = 'Foyer';
+            }
+        }
+
+
+        async function saveAssignment() {
+            const dateValue = document.getElementById('shift-date').value;
+            const dutyLocationSelect = document.getElementById('duty-location');
+            const redeployInput = document.getElementById('redeploy-location-input');
+            
+            if (!dateValue || !selectedShift) return showToast('Please select a date and shift.', true); 
+            if (!userId) return showToast('You must be signed in.', true); 
+            
+            let finalLocation = dutyLocationSelect.value;
+            
+            if (finalLocation === REDEPLOY_MARKER) {
+                const freeText = redeployInput.value.trim();
+                if (!freeText) {
+                    return showToast('Please enter the Redeploy location details.', true);
+                }
+                finalLocation = `Redeploy_${freeText}`; // Prefix for Redeploy
+            } else if (finalLocation === ADHOC_MARKER) {
+                const freeText = redeployInput.value.trim();
+                if (!freeText) {
+                    return showToast('Please enter the AdHoc details.', true);
+                }
+                finalLocation = `AdHoc_${freeText}`; // Prefix for AdHoc
+            }
+
+            const hours = parseFloat(document.getElementById('shift-hours').value);
+            const isOT = document.getElementById('is-ot').checked;
+
+            if (isNaN(hours)) {
+                return showToast('Please enter valid working hours.', true);
+            }
+            
+            const shiftData = { 
+                rawDate: dateValue, 
+                shiftTime: selectedShift === 'Morning' ? '08:00' : '20:00',
+                shift: selectedShift,
+                team: selectedTeam,
+                location: finalLocation, // Saved location is either selected or free text
+                hours: hours, 
+                isOT: isOT 
+            };
+
+            // Set hours based on statutory/off-day duties
+            if (finalLocation === OFF_DAY_MARKER) {
+                shiftData.hours = 0;
+                shiftData.isOT = false;
+            } else if (finalLocation === 'AL' || finalLocation === 'MC') {
+                // AL/MC must be 12h, regardless of user input
+                shiftData.hours = 12; 
+                shiftData.isOT = false;
+            }
+
+            try { 
+                if (editingShiftId) { 
+                    await updateDoc(doc(db, `users/${userId}/shifts`, editingShiftId), shiftData); 
+                    showToast('Shift updated!'); 
+                } else { 
+                    await addDoc(collection(db, `users/${userId}/shifts`), shiftData); 
+                    showToast('Assignment logged!'); 
+                } 
+                toggleOverlay('logger-overlay'); 
+            } catch (error) { 
+                console.error("Error saving document: ", error); 
+                showToast('Failed to save shift.', true); 
+            } 
+        }
+
+        function selectShift(shift) { selectedShift = shift; const [morningBtn, nightBtn] = [document.getElementById('morning-shift-btn'), document.getElementById('night-shift-btn')]; morningBtn.classList.toggle('bg-white', shift === 'Morning'); morningBtn.classList.toggle('text-blue-700', shift === 'Morning'); nightBtn.classList.toggle('bg-white', shift === 'Night'); nightBtn.classList.toggle('text-blue-700', shift === 'Night'); }
+        
+        function selectTeam(team) {
+            selectedTeam = team;
+            ['sentry', 'foyer', 'others'].forEach(t => {
+                const tab = document.getElementById(`${t}-tab`);
+                if (tab) tab.classList.toggle('active', t === team.toLowerCase());
+            });
+            updateDutyLocationDropdown();
+            updateRedeployInputVisibility(); // Update visibility based on newly selected team
+        }
+
+        /**
+         * Toggles the visibility of the free-text input for Redeploy location/AdHoc.
+         */
+        function updateRedeployInputVisibility() {
+            const dutyLocationSelect = document.getElementById('duty-location');
+            const redeployInput = document.getElementById('redeploy-location-input');
+            const selectedValue = dutyLocationSelect.value;
+            
+            if ((selectedValue === REDEPLOY_MARKER || selectedValue === ADHOC_MARKER) && selectedTeam === 'Others') {
+                redeployInput.classList.remove('hidden');
+                
+                // Set placeholder text dynamically
+                if (selectedValue === REDEPLOY_MARKER) {
+                     redeployInput.placeholder = "Enter Redeploy Location (e.g., Block 12, Level 3)";
+                } else {
+                     redeployInput.placeholder = "Enter AdHoc Details (e.g., Training Rota, Event Guard)";
+                }
+                redeployInput.focus();
+            } else {
+                redeployInput.classList.add('hidden');
+                redeployInput.value = ''; // Clear value when hidden
+            }
+        }
+
+        // UPDATED: Filter duty location dropdown based on the selected team
+        function updateDutyLocationDropdown() { 
+            const dropdown = document.getElementById('duty-location'); 
+            dropdown.innerHTML = ''; 
+            
+            const relevantLocations = DUTY_LOCATIONS[selectedTeam] || DUTY_LOCATIONS['Others'];
+            
+            relevantLocations.forEach(loc => { 
+                const option = new Option(loc, loc); 
+                dropdown.appendChild(option); 
+            }); 
+        }
+
+        function showToast(message, isError = false) { const toast = document.getElementById('toast'); toast.textContent = message; toast.className = `fixed bottom-24 right-5 text-white py-3 px-6 rounded-lg shadow-lg opacity-0 transform translate-y-10 transition-all duration-300 z-50 ${isError ? 'bg-red-500' : 'bg-green-500'}`; toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; }, 3000); }
+        
+        async function handleClearHistory() { 
+            if (!isAdmin) {
+                showToast('Access Denied: Only Admins can clear history.', true);
+                return;
+            }
+            const clearBtn = document.getElementById('clear-history-btn'); 
+            if (clearBtn.dataset.confirming) { 
+                clearTimeout(clearConfirmationTimeout); 
+                if (!userId) return showToast('Auth error.', true); 
+                try { 
+                    const shiftsCollectionRef = collection(db, `users/${userId}/shifts`); 
+                    const querySnapshot = await getDocs(shiftsCollectionRef); 
+                    const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref)); 
+                    await Promise.all(deletePromises); 
+                    showToast('History cleared.'); 
+                    resetClearButton(); 
+                    toggleOverlay('tools-overlay'); 
+                } catch (error) { 
+                    console.error("Error clearing history:", error);
+                    showToast('Failed to clear history.', true); 
+                } 
+            } else { 
+                clearBtn.dataset.confirming = 'true'; 
+                clearBtn.textContent = 'Confirm Clear?'; 
+                clearBtn.classList.replace('bg-red-600', 'bg-yellow-500'); 
+                clearBtn.classList.replace('hover:bg-red-700', 'hover:bg-yellow-600'); 
+                clearConfirmationTimeout = setTimeout(resetClearButton, 3500); 
+            } 
+        }
+
+        function resetClearButton() { const clearBtn = document.getElementById('clear-history-btn'); clearBtn.dataset.confirming = ''; clearBtn.textContent = 'Clear History'; clearBtn.classList.replace('bg-yellow-500', 'bg-red-600'); clearBtn.classList.replace('hover:bg-yellow-600', 'hover:bg-red-700'); }
+        
+        /**
+         * 1. Opens the date selection modal for custom report generation.
+         * The main generateReport button now calls this.
+         */
+        function openReportGenerator() {
+            toggleOverlay('tools-overlay'); // Close tools
+            
+            // Set default dates: first day of current month to last day of current month
+            const today = new Date();
+            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+            const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+
+            document.getElementById('start-date-input').value = firstDayOfMonth;
+            document.getElementById('end-date-input').value = lastDayOfMonth;
+            
+            toggleOverlay('report-generator-overlay'); // Open report modal
+        }
+
+        /**
+         * 2. Reads selected dates and triggers the report generation logic.
+         */
+        function generateCustomReport() {
+            const startDateString = document.getElementById('start-date-input').value;
+            const endDateString = document.getElementById('end-date-input').value;
+
+            if (!startDateString || !endDateString) {
+                return showToast('Please select both start and end dates.', true);
+            }
+
+            // Set time to start of day for accurate comparison
+            const startDate = new Date(startDateString + 'T00:00:00');
+            // Set time to end of day to include the full end date
+            const endDate = new Date(endDateString + 'T23:59:59'); 
+
+            if (startDate > endDate) {
+                return showToast('Start Date cannot be after End Date.', true);
+            }
+
+            toggleOverlay('report-generator-overlay');
+            
+            // Call the core report generation logic
+            _generateReportHTML(startDate, endDate);
+        }
+
+        /**
+         * 3. Core function to generate the HTML report based on a date range.
+         * This replaces the original `generateReport` function content and accepts a date range.
+         * @param {Date} startDate 
+         * @param {Date} endDate 
+         */
+        function _generateReportHTML(startDate, endDate) {
+            
+            // Helper function to create the table rows for a specific team (Sentry or Foyer)
+            const createTeamBreakdown = (teamLocations, shiftList) => {
+                // Map to store counts: Location -> { morning: count, night: count }
+                const allReportedLocations = new Set();
+                const countsMap = new Map();
+
+                // Initialize counts map with all predefined locations and markers
+                teamLocations.forEach(loc => countsMap.set(loc, { morning: 0, night: 0 }));
+
+                shiftList.forEach(shift => {
+                    allReportedLocations.add(shift.location);
+                    
+                    // If the shift location is NOT a predefined location, initialize its count entry
+                    if (!countsMap.has(shift.location)) {
+                         countsMap.set(shift.location, { morning: 0, night: 0 });
+                    }
+                    
+                    const counts = countsMap.get(shift.location);
+                    if (counts) {
+                        if (shift.shift === 'Morning') {
+                            counts.morning += 1;
+                        } else if (shift.shift === 'Night') {
+                            counts.night += 1;
+                        }
+                    }
+                });
+                
+                // Collect all unique locations reported (predefined + dynamic free-text redeploy locations)
+                // Filter out the REDEPLOY_MARKER and ADHOC_MARKER themselves, and the OT marker since we removed it from DUTY_LOCATIONS
+                const markersToRemove = [REDEPLOY_MARKER, ADHOC_MARKER, 'OT'];
+                
+                const locationsToReport = Array.from(new Set([...teamLocations, ...Array.from(allReportedLocations)]))
+                    .filter(loc => !markersToRemove.includes(loc))
+                    .sort((a, b) => a.localeCompare(b));
+
+
+                // Generate table rows
+                return locationsToReport.map(loc => {
+                    const counts = countsMap.get(loc) || { morning: 0, night: 0 };
+                    
+                    // Do NOT skip rows where the count is 0 (required by user)
+                    
+                    // Determine color: If prefixed AdHoc/Redeploy, use the ADHOC_MARKER color fallback.
+                    const isPrefixedFreeText = loc.startsWith('AdHoc_') || loc.startsWith('Redeploy_');
+                    const colorKey = LOCATION_COLORS[loc] ? loc : (isPrefixedFreeText ? ADHOC_MARKER : REDEPLOY_MARKER);
+                    const colorInfo = LOCATION_COLORS[colorKey] || { bg: 'bg-gray-100', text: 'text-gray-800' };
+                    
+                    // Display location: remove prefix for cleaner reporting
+                    const displayLoc = loc.replace('AdHoc_', 'AdHoc: ').replace('Redeploy_', 'Redeploy: ');
+
+
+                    // UPDATED: Added Total Column Logic Here
+                    const totalShifts = counts.morning + counts.night;
+
+                    return `
+                        <tr>
+                            <td style="padding: 8px; background-color:${colorInfo.bg}; border-radius: 4px;">${displayLoc}</td>
+                            <td style="padding: 8px; text-align: center;">${counts.morning}</td>
+                            <td style="padding: 8px; text-align: center;">${counts.night}</td>
+                            <td style="padding: 8px; text-align: center; font-weight: bold;">${totalShifts}</td>
+                        </tr>
+                    `;
+                }).join('');
+            };
+
+
+            const rawShifts = allShifts.filter(s => isTeamRelevant(s.team));
+            
+            // Filter shifts based on the provided date range
+            let shiftsForReport = rawShifts.filter(s => {
+                const shiftDate = new Date(s.rawDate + 'T00:00:00');
+                return shiftDate >= startDate && shiftDate <= endDate;
+            });
+            
+            if (shiftsForReport.length === 0) { 
+                showToast('No data to report for the selected date range based on your location filter.', true); 
+                return; 
+            }
+            
+            shiftsForReport.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+            
+            // Calculate totals
+            let totalHours = 0;
+            let totalMorningHours = 0;
+            let totalNightHours = 0;
+            let totalOTShifts = 0; 
+            let totalMorningOTShifts = 0; 
+            let totalNightOTShifts = 0;  
+            
+            shiftsForReport.forEach(s => { 
+                totalHours += s.hours; 
+                if (s.isOT) {
+                    totalOTShifts++; 
+                    if (s.shift === 'Morning') totalMorningOTShifts++;
+                    if (s.shift === 'Night') totalNightOTShifts++;
+                }
+                if (s.shift === 'Morning') totalMorningHours += s.hours;
+                if (s.shift === 'Night') totalNightHours += s.hours;
+            });
+
+            // Recalculate OT Hours based on contractual hours
+            const otHoursSummary = Math.max(0, totalHours - CONTRACTUAL_HOURS);
+            
+            // Format the report title
+            const startDisplay = startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', day: 'numeric' });
+            const endDisplay = endDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', day: 'numeric' });
+            
+            let dateRangeTitle;
+            if (startDate.toDateString() === endDate.toDateString()) {
+                 dateRangeTitle = startDisplay;
+            } else if (startDate.getFullYear() === endDate.getFullYear() && startDate.getMonth() === endDate.getMonth()) {
+                 dateRangeTitle = `${startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { day: 'numeric' })}`;
+            } else {
+                 dateRangeTitle = `${startDisplay} to ${endDisplay}`;
+            }
+
+            // --- HEADER METADATA ---
+            const userMetadataHTML = `
+                <div style="margin-bottom: 1.5em; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                    <p style="margin: 0 0 5px 0; font-size: 1.1em; font-weight: 600;">Report For:</p>
+                    <ul style="list-style: none; padding: 0; font-size: 0.95em;">
+                        <li><strong>Name:</strong> ${userProfile.userName || 'N/A (Update in Profile Settings)'}</li>
+                        <li><strong>Employee ID:</strong> ${userProfile.employeeId || 'N/A (Update in Profile Settings)'}</li>
+                        <li><strong>Email:</strong> ${auth.currentUser?.email || 'N/A'}</li>
+                    </ul>
+                </div>
+            `;
+
+
+            // --- 1. Calculate and build Sentry Frequency Table (Conditional on filter) ---
+            let sentryTableHTML = '';
+            if (userProfile.userLocationFilter === 'Sentry' || userProfile.userLocationFilter === 'Both') {
+                const relevantShiftsForSentry = shiftsForReport.filter(s => isTeamRelevant(s.team)); 
+                const sentryLocationsToBreakdown = [...DUTY_LOCATIONS.Sentry, ...DUTY_LOCATIONS.Others];
+                const sentryRows = createTeamBreakdown(sentryLocationsToBreakdown, relevantShiftsForSentry);
+                
+                sentryTableHTML = `
+                    <h3>Sentry & Other Duties Frequency</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Location / Duty</th>
+                                <th style="width: 20%;">Morning Shift</th>
+                                <th style="width: 20%;">Night Shift</th>
+                                <th style="width: 20%;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${sentryRows}</tbody>
+                    </table>
+                `;
+            }
+
+            // --- 2. Calculate and build Foyer Frequency Table (Conditional on filter) ---
+            let foyerTableHTML = '';
+            if (userProfile.userLocationFilter === 'Foyer' || userProfile.userLocationFilter === 'Both') {
+                const relevantShiftsForFoyer = shiftsForReport.filter(s => isTeamRelevant(s.team));
+                const foyerLocationsToBreakdown = [...DUTY_LOCATIONS.Foyer, ...DUTY_LOCATIONS.Others];
+                const foyerRows = createTeamBreakdown(foyerLocationsToBreakdown, relevantShiftsForFoyer);
+
+                foyerTableHTML = `
+                    <h3>Foyer & Other Duties Frequency</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Location / Duty</th>
+                                <th style="width: 20%;">Morning Shift</th>
+                                <th style="width: 20%;">Night Shift</th>
+                                <th style="width: 20%;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${foyerRows}</tbody>
+                    </table>
+                `;
+            }
+            
+            // 3. Build breakdown HTML
+            let breakdownHTML = '';
+            if (sentryTableHTML || foyerTableHTML) {
+                breakdownHTML = `
+                    <div style="margin-top: 2em;">
+                        ${sentryTableHTML}
+                        ${foyerTableHTML}
+                    </div>
+                `;
+            }
+
+            // 4. Build OT Shift Breakdown Table (New Section)
+            const otBreakdownHTML = `
+                <h3 style="margin-top: 2em;">Overtime Shift Breakdown (Count)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50%;">Shift Type (Flagged OT)</th>
+                            <th style="width: 50%;">Shift Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 8px;">Morning OT Shifts</td>
+                            <td style="padding: 8px; text-align: center;">${totalMorningOTShifts}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px;">Night OT Shifts</td>
+                            <td style="padding: 8px; text-align: center;">${totalNightOTShifts}</td>
+                        </tr>
+                        <tr style="font-weight: 700; background-color: #fef3c7;">
+                            <td style="padding: 8px;">TOTAL OT SHIFTS LOGGED:</td>
+                            <td style="padding: 8px; text-align: center;">${totalOTShifts}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+
+            // 5. Build Enhanced Detailed Log Body
+            const detailedLogBody = shiftsForReport.map(s => {
+                const isOTMark = s.isOT ? `<span style="color:#f59e0b; font-weight:700;">(OT)</span>` : '';
+                
+                // Determine display location and color
+                let displayLocation = s.location;
+                let colorKey = s.location;
+                
+                if (s.location.startsWith('AdHoc_')) {
+                    displayLocation = `AdHoc: ${s.location.replace('AdHoc_', '')}`;
+                    colorKey = ADHOC_MARKER;
+                } else if (s.location.startsWith('Redeploy_')) {
+                    displayLocation = `Redeploy: ${s.location.replace('Redeploy_', '')}`;
+                    colorKey = REDEPLOY_MARKER;
+                }
+
+                const colorInfo = LOCATION_COLORS[colorKey] || LOCATION_COLORS[REDEPLOY_MARKER] || { bg: 'bg-gray-100', text: 'text-gray-800', hex: '#ffffff' };
+                const locationColor = colorInfo.hex;
+                
+                return `
+                    <tr style="border-left: 5px solid ${locationColor};">
+                        <td style="padding: 8px;">${new Date(s.rawDate+'T00:00:00').toLocaleDateString('en-GB')}</td>
+                        <td style="padding: 8px; font-weight: 600;">${s.shift}</td>
+                        <td style="padding: 8px;">${displayLocation}</td>
+                        <td style="padding: 8px; text-align: center;">${s.hours} ${isOTMark}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // 6. Build Detailed Log Footer
+            const detailedLogFooter = `
+                <tfoot>
+                    <tr style="background-color: #e0f2fe; font-weight: 700; border-top: 2px solid #3b82f6;">
+                        <td colspan="3" style="text-align: right; padding: 10px;">TOTAL LOGGED HOURS:</td>
+                        <td style="text-align: center; padding: 10px;">${totalHours}</td>
+                    </tr>
+                    <tr style="background-color: #f0f9ff;">
+                        <td colspan="3" style="text-align: right; padding: 8px;">Morning Shift Hours:</td>
+                        <td style="text-align: center; padding: 8px;">${totalMorningHours}</td>
+                    </tr>
+                    <tr style="background-color: #f0f9ff;">
+                        <td colspan="3" style="text-align: right; padding: 8px;">Night Shift Hours:</td>
+                        <td style="text-align: center; padding: 8px;">${totalNightHours}</td>
+                    </tr>
+                    <tr style="background-color: #fffbeb; font-weight: 600;">
+                        <td colspan="3" style="text-align: right; padding: 10px; color:#b45309;">OVERTIME HOURS:</td>
+                        <td style="text-align: center; padding: 10px; color:#b45309;">${otHoursSummary}</td>
+                    </tr>
+                </tfoot>
+            `;
+
+
+            const reportHTML = `<html><head><title>Shift Tracker Report - ${dateRangeTitle}</title><style>body{font-family:sans-serif;margin:2em;}h1,h2{text-align:center;color:#333}h3{margin-top:1.5em;color:#555;}ul{list-style:none;padding:0;}ul li{margin-bottom:0.5em;font-size:1.1em;}table{width:100%;border-collapse:collapse;margin-top:1em;margin-bottom:2em}th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:0.95em;}th{background-color:#e5e7eb;font-weight:600;text-align:center;}th:first-child, td:first-child { text-align: left; }tr:nth-child(even) td{background-color:#f9fafb;}</style></head><body><h1>Shift Report</h1><h2>${dateRangeTitle}</h2>${userMetadataHTML}<h3>Summary</h3><ul><li>Planned Hours (Contract): ${CONTRACTUAL_HOURS}</li><li>Total Logged Hours: ${totalHours}</li><li>Overtime Hours: ${otHoursSummary}</li></ul>${breakdownHTML}${otBreakdownHTML}<h3>Detailed Log</h3><table><thead><tr><th>Date</th><th>Shift</th><th>Location</th><th style="text-align: center; width: 15%;">Hours</th></tr></thead><tbody>${detailedLogBody}</tbody>${detailedLogFooter}</table></body></html>`;
+            
+            try {
+                const blob = new Blob([reportHTML], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const reportWindow = window.open(url, '_blank', 'noopener');
+                if (!reportWindow) {
+                    showToast('Pop‑up blocked: Please allow pop‑ups to view the report.', true);
+                } else {
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                }
+            } catch (error) {
+                console.error('Error generating report:', error);
+                showToast('An error occurred while generating the report.', true);
+            }
+        }
+        
+        // Aliasing the main function for the button listener
+        function generateReport() {
+            openReportGenerator();
+        }
+
+        // --- INLINE DATA AND IMPORT LOGIC ---
+
+        // OCTOBER 2025 SHIFT DATA (UPDATED: AL=12h, F1=AdHoc 13h, All duties mapped to Sentry or Others)
+        const OCTOBER_SHIFTS_2025 = [
+            { day: 1, type: 'MORNING', location: 'E1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 2, type: 'MORNING', location: 'F1', ot: false, team: 'Sentry', hours: 13 }, // Set to 13h per user clarification
+            { day: 3, type: 'MORNING', location: 'F1', ot: false, team: 'Sentry', hours: 13 }, // Set to 13h per user clarification
+            { day: 4, type: 'MORNING', location: 'F1', ot: false, team: 'Sentry', hours: 13 }, // Set to 13h per user clarification
+            { day: 5, type: 'MORNING', location: 'F1', ot: false, team: 'Sentry', hours: 13 }, // Set to 13h per user clarification
+            { day: 6, type: 'NIGHT', location: 'ECHO 3', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 7, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 8, type: 'NIGHT', location: 'PATROL 2', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 9, type: 'NIGHT', location: 'PATROL 1', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 10, type: 'NIGHT', location: 'E1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 11, type: 'NIGHT', location: 'ECHO 3', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 12, type: 'NIGHT', location: 'N1 (CNB DST)', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 13, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 14, type: 'NIGHT', location: 'N1 (CNB DST)', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 15, type: 'NIGHT', location: 'PATROL 1', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 16, type: 'NIGHT', location: 'ECHO 3', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 17, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 18, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 19, type: 'ANNUAL LEAVE', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 20, type: 'ANNUAL LEAVE', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 21, type: 'NIGHT', location: 'PATROL 1', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 22, type: 'NIGHT', location: 'N1 (CNB DST)', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 23, type: 'NIGHT', location: 'ECHO 3', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 24, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 25, type: 'MORNING', location: 'N1 (CNB DST)', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 26, type: 'MORNING', location: 'ECHO 3', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 27, type: 'MORNING', location: 'E1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 28, type: 'NIGHT', location: 'N1 (CNB DST)', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 29, type: 'NIGHT', location: 'ECHO 3', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 30, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 31, type: 'MORNING', location: 'GUARD HOUSE', ot: false, team: 'Sentry', hours: 12 } 
+        ];
+
+        // NOVEMBER 2025 SHIFT DATA
+        const NOVEMBER_SHIFTS_2025 = [
+            { day: 1, type: 'MORNING', location: 'N1 (CNB DST)', ot: false, team: 'Sentry', hours: 12 },
+            { day: 2, type: 'NIGHT', location: 'OE / STANDBY', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 3, type: 'NIGHT', location: 'N1 (CNB DST)', ot: false, team: 'Sentry', hours: 12 },
+            { day: 4, type: 'NIGHT', location: 'ECHO 3', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 5, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 6, type: 'MORNING', location: 'PATROL 1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 7, type: 'NIGHT', location: 'PATROL 2', ot: false, team: 'Sentry', hours: 12 },
+            { day: 8, type: 'NIGHT', location: 'ECHO 3', ot: false, team: 'Sentry', hours: 12 },
+            { day: 9, type: 'NIGHT', location: 'OE / STANDBY', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 10, type: 'NIGHT', location: 'N1 (CNB DST)', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 11, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 12, type: 'MORNING', location: 'FIRST AID', ot: false, team: 'Others', hours: 12 }, 
+            { day: 13, type: 'MORNING', location: 'AED', ot: false, team: 'Others', hours: 12 }, 
+            { day: 14, type: 'NIGHT', location: 'PATROL 2', ot: false, team: 'Sentry', hours: 12 },
+            { day: 15, type: 'NIGHT', location: 'PATROL 1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 16, type: 'NIGHT', location: 'E1', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 17, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 18, type: 'MORNING', location: 'E1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 19, type: 'MORNING', location: 'CNB', ot: false, team: 'Others', hours: 12 }, 
+            { day: 20, type: 'NIGHT', location: 'OE / STANDBY', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 21, type: 'NIGHT', location: 'E1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 22, type: 'NIGHT', location: 'ECHO 3', ot: true, team: 'Sentry', hours: 12 }, 
+            { day: 23, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 24, type: 'MORNING', location: 'GUARD HOUSE', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 25, type: 'NIGHT', location: 'PATROL 1', ot: false, team: 'Sentry', hours: 12 },
+            { day: 26, type: 'NIGHT', location: 'OE / STANDBY', ot: false, team: 'Sentry', hours: 12 }, 
+            { day: 27, type: 'NIGHT', location: 'AdHoc', ot: false, team: 'Others', hours: 12 }, 
+            { day: 28, type: 'NIGHT', location: 'OT', ot: true, team: 'Others', hours: 12 }, 
+            { day: 29, type: 'OFF DAY', location: 'AL', ot: false, team: 'Others', hours: 12 }, 
+            { day: 30, type: 'MORNING', location: 'AdHoc', ot: false, team: 'Others', hours: 12 } 
+        ];
+
+
+        // UTILITY FUNCTION: Map shift data to final Firestore object
+        const mapShiftData = (shift, year, month) => {
+            let actualShift = shift.type;
+            let team = shift.team;
+            let location = shift.location;
+            let hours = shift.hours;
+            let isOT = shift.ot;
+
+            // Handle location overrides based on input data specific to the current shift block
+            if (location === 'F1') {
+                location = 'AdHoc_F1'; 
+                team = 'Others';
+                hours = 13; // F1 is 13 hours, per user clarification
+            } else if (location === 'AdHoc' && shift.day === 27 && month === 11) {
+                location = 'AdHoc_Duty';
+                team = 'Others';
+            } else if (location === 'AdHoc' && shift.day === 30 && month === 11) {
+                location = 'AdHoc_Duty';
+                team = 'Others';
+            }
+            
+            // If location is AdHoc, Training, CNB, FIRST AID, etc., ensure team is Others
+            else if (['AL', 'MC', 'OT', 'Training', 'CNB', 'FIRST AID', 'AED', OFF_DAY_MARKER, REDEPLOY_MARKER, ADHOC_MARKER].includes(location) || location.startsWith('AdHoc_') || location.startsWith('Redeploy_')) {
+                team = 'Others';
+            } else if (location.includes('X-RAY') || location.includes('VERTICAL PROWLER')) {
+                team = 'Foyer';
+            } else if (location === 'AdHoc') { // Catch remaining AdHoc if not prefixed
+                location = 'AdHoc_Duty';
+                team = 'Others';
+            } else {
+                 team = 'Sentry'; // Default to Sentry for E1, GH, P1, E3, N1, OE, etc.
+            }
+
+
+            // Normalize shift type
+            if (actualShift.includes('DAY') || actualShift.includes('LEAVE')) {
+                 actualShift = 'Morning'; 
+            } else if (actualShift.includes('MORNING')) {
+                actualShift = 'Morning';
+            } else if (actualShift.includes('NIGHT')) {
+                actualShift = 'Night';
+            }
+
+            // CRITICAL UPDATE: Handle AL/MC hours based on user request (AL/MC = 12h logged)
+            if (location === 'AL' || location === 'MC') {
+                hours = 12; // Annual Leave/MC is treated as 12h logged time
+                isOT = false;
+            } else if (location === OFF_DAY_MARKER || shift.type === 'OFF DAY') {
+                hours = 0;
+                isOT = false;
+                location = OFF_DAY_MARKER;
+            }
+            
+            // If the original data marked it as OT, use the hours set in the data structure
+            if (isOT && hours === 0) {
+                 hours = 12; 
+            }
+
+
+            const dateString = `${year}-${String(month).padStart(2, '0')}-${String(shift.day).padStart(2, '0')}`;
+            
+            return {
+                rawDate: dateString,
+                shiftTime: actualShift === 'Morning' ? '08:00' : '20:00',
+                shift: actualShift,
+                team: team, 
+                location: location,
+                hours: hours,
+                isOT: isOT
+            };
+        };
+
+        /**
+         * Uploads the hardcoded shift data to Firestore.
+         * @param {object} firestoreDb The Firestore instance.
+         * @param {string} currentUserId The authenticated user's ID.
+         * @param {function} toastCallback Function to display toast messages.
+         */
+        async function importOctoberShifts(firestoreDb, currentUserId, toastCallback) {
+            if (!currentUserId) {
+                toastCallback('Please sign in before importing data.', true);
+                return;
+            }
+            const year = 2025;
+            const month = 10; // October
+            const shiftCollectionRef = collection(firestoreDb, `users/${currentUserId}/shifts`);
+            const importPromises = [];
+
+            OCTOBER_SHIFTS_2025.forEach(shiftData => {
+                const finalShift = mapShiftData(shiftData, year, month);
+                importPromises.push(addDoc(shiftCollectionRef, finalShift));
+            });
+
+            await Promise.all(importPromises);
+            toastCallback(`Successfully imported ${importPromises.length} shifts for October 2025!`, false);
+            window.location.reload(); 
+        }
+
+        async function importNovemberShifts(firestoreDb, currentUserId, toastCallback) {
+            if (!currentUserId) {
+                toastCallback('Please sign in before importing data.', true);
+                return;
+            }
+            const year = 2025;
+            const month = 11; // November
+            const shiftCollectionRef = collection(firestoreDb, `users/${currentUserId}/shifts`);
+            const importPromises = [];
+
+            NOVEMBER_SHIFTS_2025.forEach(shiftData => {
+                const finalShift = mapShiftData(shiftData, year, month);
+                importPromises.push(addDoc(shiftCollectionRef, finalShift));
+            });
+
+            await Promise.all(importPromises);
+            toastCallback(`Successfully imported ${importPromises.length} shifts for November 2025!`, false);
+            window.location.reload(); 
+        }
+
+        // --- NEW GENERIC IMPORT HANDLER ---
+        /**
+         * Generic handler to load and execute a specific month's import function.
+         * @param {Event} e 
+         * @param {function} importFunction The function to call (e.g., importOctoberShifts).
+         * @param {string} monthName The display name of the month (e.g., 'November').
+         */
+        async function handleImportMonth(e, importFunction, monthName) {
+            const importButton = e.target;
+            
+            // Confirmation Step
+            if (importButton.dataset.confirming === 'true') {
+                importButton.textContent = `Importing ${monthName}...`;
+                importButton.disabled = true;
+                importButton.classList.replace('bg-yellow-500', 'bg-gray-400');
+                
+                try {
+                    // Call the function directly, as it's now defined globally.
+                    await importFunction(db, userId, toastCallback); 
+                } catch (error) {
+                    console.error(`Failed to execute ${monthName} import function:`, error);
+                    showToast(`Failed to execute ${monthName} import. See console.`, true);
+                } finally {
+                    // Reset button state on failure (success leads to reload)
+                    importButton.dataset.confirming = 'false';
+                    importButton.textContent = `Import ${monthName} 2025 Data`;
+                    importButton.disabled = false;
+                    importButton.classList.replace('bg-gray-400', 'bg-white/50');
+                    importButton.classList.replace('text-white', 'text-green-600');
+                    importButton.classList.replace('hover:bg-yellow-600', 'hover:bg-white/80');
+                    // Only close overlay if the UI hasn't been reloaded
+                    if (document.getElementById('tools-overlay') && !document.getElementById('tools-overlay').classList.contains('hidden')) {
+                        toggleOverlay('tools-overlay'); 
+                    }
+                }
+
+            } else {
+                // First click: Ask for confirmation
+                importButton.dataset.confirming = 'true';
+                importButton.textContent = `CONFIRM IMPORT for ${monthName}?`;
+                importButton.classList.replace('bg-white/50', 'bg-yellow-500');
+                importButton.classList.replace('text-green-600', 'text-white');
+                importButton.classList.replace('hover:bg-white/80', 'hover:bg-yellow-600');
+                
+                // Reset confirmation state after a few seconds
+                setTimeout(() => {
+                    if (importButton.dataset.confirming === 'true') {
+                        importButton.dataset.confirming = 'false';
+                        importButton.textContent = `Import ${monthName} 2025 Data`;
+                        importButton.classList.replace('bg-yellow-500', 'bg-white/50');
+                        importButton.classList.replace('text-white', 'text-green-600');
+                        importButton.classList.replace('hover:bg-yellow-600', 'hover:bg-white/80');
+                    }
+                }, 5000); // 5 seconds to confirm
+            }
+        }
+
+
+        // --- ROSTER PATTERN/TEAM MANAGEMENT FUNCTIONS ---
+        
+        /**
+         * Finds the active team pattern based on the userProfile.
+         */
+        function getActiveTeamPattern() {
+            return allTeams.find(t => t.id === userProfile.userTeamId);
+        }
+
+        /**
+         * Calculates the auto shift for a given day using the active team pattern.
+         */
+        function getAutoShiftForDay(day, year, month, teamPattern) {
+            if (!teamPattern || !teamPattern.anchor || !teamPattern.pattern || teamPattern.pattern.length === 0) {
+                return null;
+            }
+            
+            try {
+                const anchorDate = new Date(teamPattern.anchor + 'T00:00:00');
+                const currentDate = new Date(year, month, day);
+                
+                const diffTime = currentDate - anchorDate;
+                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                const pattern = teamPattern.pattern;
+                const patternIndex = (diffDays % pattern.length + pattern.length) % pattern.length;
+                const autoShift = pattern[patternIndex];
+                
+                return autoShift ? { type: autoShift.type, isAuto: true } : null;
+            } catch(e) {
+                console.error("Error calculating auto-shift:", e);
+                return null;
+            }
+        }
+        
+        // --- Team Manager (List View) Functions - SHARED LOGIC ---
+
+        function renderTeamManagerList() {
+            const container = document.getElementById('team-manager-content');
+            container.innerHTML = ''; // Clear previous content
+
+            if (isAdmin) {
+                // ADMIN VIEW: Full control over teams and patterns
+                container.innerHTML = `
+                    <div class="p-6 space-y-4">
+                        <div class="flex justify-between items-center pb-2 border-b border-white/20">
+                            <h2 class="text-lg font-semibold text-gray-700">All Teams (Shared Data: users/${userId}/teams)</h2>
+                            <!-- CRITICAL Z-INDEX FIX: Adding z-50 inline -->
+                            <button id="add-new-team-btn" class="btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm z-50" style="z-index: 9999;">Add New Team</button>
+                        </div>
+                        <div id="teams-list" class="space-y-3">
+                            <p id="no-teams-message" class="text-center text-gray-500 py-4">No teams created. Click "Add New Team" above.</p>
+                            <!-- Team items injected here -->
+                        </div>
+                    </div>
+                `;
+                // CRITICAL FIX: Attach listener immediately after rendering content
+                document.getElementById('add-new-team-btn')?.addEventListener('click', () => openEditTeamPattern(null));
+
+            } else {
+                 // REGULAR USER VIEW: Allow users to view existing patterns and create their own.  Add New Team
+                 container.innerHTML = `
+                    <div class="p-6 space-y-4">
+                        <div class="flex justify-between items-center pb-2 border-b border-white/20">
+                            <h2 class="text-lg font-semibold text-gray-700 mb-2">Select Your Roster Team</h2>
+                            <button id="add-new-team-btn" class="btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm z-50" style="z-index: 9999;">Add New Team</button>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-4">Select the team pattern that matches your current roster to enable shift auto-planning on the calendar.</p>
+                        <div id="teams-list" class="space-y-3">
+                            <p id="no-teams-message" class="text-center text-gray-500 py-4">No teams are currently available. Use "Add New Team" above to create one.</p>
+                            <!-- Team items injected here -->
+                        </div>
+                    </div>
+                 `;
+                 // Attach listener for the Add New Team button in user view
+                 document.getElementById('add-new-team-btn')?.addEventListener('click', () => openEditTeamPattern(null));
+            }
+            
+            const listContainer = document.getElementById('teams-list');
+            const noTeamsMessage = document.getElementById('no-teams-message');
+
+            noTeamsMessage.classList.toggle('hidden', allTeams.length > 0);
+            
+            // Render the team list (same logic for both)
+            allTeams.forEach(team => {
+                const isActive = team.id === userProfile.userTeamId;
+                const patternSummary = team.pattern?.map(p => p.type).join(', ') || 'No pattern set';
+
+                const teamItem = document.createElement('div');
+                teamItem.className = `glass-card p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center ${isActive ? 'border-2 border-indigo-600' : 'border border-white/20'}`;
+                
+                let actionButton = '';
+                if (isActive) {
+                    actionButton = `<span class="text-sm text-gray-500 py-2 px-3 font-medium">Selected</span>`;
+                } else {
+                    actionButton = `<button onclick="window.setUserTeam('${team.id}')" class="text-sm bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-lg">Select</button>`;
+                }
+
+                if (isAdmin) {
+                    // Admin view gets both Select/Selected and Edit/Delete buttons
+                    actionButton = `
+                        <button onclick="window.openEditTeamPattern('${team.id}')" class="text-sm text-blue-500 hover:text-blue-700 font-semibold p-2 rounded-lg bg-white/50">Edit</button>
+                        ${actionButton}
+                        ${!isActive ? `<button onclick="window.deleteTeam('${team.id}')" class="text-sm text-red-500 hover:text-red-700 font-semibold p-2 rounded-lg bg-white/50">Delete</button>` : ''}
+                    `;
+                }
+
+                teamItem.innerHTML = `
+                    <div class="flex-grow w-full">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-lg font-bold text-gray-800 truncate">${team.teamName}</h3>
+                            ${isActive ? '<span class="text-xs font-semibold bg-indigo-100 text-indigo-700 py-0.5 px-2 rounded-full">ACTIVE</span>' : ''}
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1 truncate">Pattern: ${patternSummary}</p>
+                    </div>
+                    <div class="flex space-x-2 mt-3 sm:mt-0 flex-shrink-0">
+                        ${actionButton}
+                    </div>
+                `;
+                listContainer.appendChild(teamItem);
+            });
+        }
+
+        window.setUserTeam = async (teamId) => {
+            if (!userId) return showToast('You must be signed in.', true);
+            const profileDocRef = doc(db, `users/${userId}/settings`, 'profile');
+            try {
+                await setDoc(profileDocRef, { userTeamId: teamId }, { merge: true });
+                showToast(`Active team set!`);
+                // Re-render the list to update the "ACTIVE" status
+                renderTeamManagerList(); 
+                // Since the pattern may have changed, re-render history/calendar
+                renderHistory();
+            } catch(e) {
+                console.error("Error setting active team:", e);
+                showToast('Failed to set active team.', true);
+            }
+        };
+        
+        window.deleteTeam = async (teamId) => {
+            if (!userId) return showToast('You must be signed in.', true);
+            // Removing admin check; users can delete their own teams.  Firestore rules
+            // ensure that users cannot delete documents outside their own path.
+            if (teamId === userProfile.userTeamId) {
+                 return showToast('Cannot delete the active team. Please select another team first.', true);
+            }
+            try {
+                // UPDATED: Delete from the SHARED path
+                await deleteDoc(doc(db, `users/${userId}/teams`, teamId));
+                showToast('Team pattern deleted.');
+            } catch (e) {
+                console.error("Error deleting team:", e);
+                showToast('Failed to delete team pattern.', true);
+            }
+        };
+
+        // MODIFIED: Allows all users to open the overlay, but restricts functionality inside
+        function openTeamManager() {
+            document.getElementById('team-manager-title').textContent = isAdmin ? 'Manage Teams & Patterns' : 'Team & Pattern Selection';
+            
+            // This function is now shared and renders the content based on isAdmin status.
+            renderTeamManagerList();
+            
+            toggleOverlay('team-manager-overlay');
+            toggleOverlay('tools-overlay');
+        }
+
+
+        // --- Edit Team Pattern (Visual Editor) Functions ---
+
+        /**
+         * Prepares and opens the visual editor for a new or existing team.
+         * @param {string|null} teamId The ID of the team to edit, or null for new team.
+         */
+        window.openEditTeamPattern = (teamId) => {
+            if (!userId) return showToast('Please sign in first.', true);
+            // Allow all authenticated users to open the team pattern editor.
+
+            const teamToEdit = teamId ? allTeams.find(t => t.id === teamId) : null;
+            
+            if (teamId && !teamToEdit) {
+                return showToast('Team not found!', true);
+            }
+            
+            // Set up editingTeam state (deep clone for safe editing)
+            if (teamToEdit) {
+                editingTeam = JSON.parse(JSON.stringify(teamToEdit));
+                document.getElementById('edit-team-title').textContent = `Edit Pattern: ${teamToEdit.teamName}`;
+            } else {
+                editingTeam = { 
+                    id: null, 
+                    teamName: 'New Team', 
+                    anchor: new Date().toISOString().split('T')[0], 
+                    patternLength: 6, 
+                    pattern: Array(6).fill({ type: 'OFF' }) 
+                };
+                document.getElementById('edit-team-title').textContent = `Create New Team`;
+            }
+            
+            // Populate inputs
+            document.getElementById('team-name-input').value = editingTeam.teamName;
+            document.getElementById('pattern-anchor-date').value = editingTeam.anchor;
+            document.getElementById('pattern-length').value = editingTeam.patternLength;
+
+            // Render grid
+            renderPatternGrid();
+
+            // Open the modal
+            toggleOverlay('edit-team-pattern-overlay');
+            if (!document.getElementById('team-manager-overlay').classList.contains('hidden')) {
+                toggleOverlay('team-manager-overlay'); // Close manager view if open
+            }
+            if (!document.getElementById('tools-overlay').classList.contains('hidden')) {
+                toggleOverlay('tools-overlay'); // Close tools view if open
+            }
+        };
+
+        /**
+         * Renders the visual pattern grid based on the current editingTeam state.
+         */
+        function renderPatternGrid() {
+            const grid = document.getElementById('visual-pattern-grid');
+            const pattern = editingTeam.pattern;
+            grid.innerHTML = '';
+            
+            const length = pattern.length;
+            let colClass = 'grid-cols-3'; 
+            if (length > 4) colClass = 'sm:grid-cols-4';
+            if (length > 6) colClass = 'md:grid-cols-6';
+            
+            grid.className = `grid gap-3 ${colClass}`;
+
+            pattern.forEach((shift, index) => {
+                const dayNum = index + 1;
+                const shiftType = shift.type || 'OFF';
+                
+                let value = shiftType;
+                if (shiftType === 'M') value = 'MORNING';
+                if (shiftType === 'N') value = 'NIGHT';
+
+                const cell = document.createElement('div');
+                cell.className = `pattern-cell rounded-lg pattern-cell-${shiftType}`;
+                cell.dataset.index = index;
+                
+                cell.innerHTML = `
+                    <span class="pattern-label">Day ${dayNum}</span>
+                    <span class="pattern-value">${value}</span>
+                `;
+                
+                grid.appendChild(cell);
+            });
+        }
+        
+        /**
+         * Cycles the shift type for a clicked cell in the pattern editor.
+         */
+        function handlePatternCellClick(event) {
+            const cell = event.target.closest('.pattern-cell');
+            if (!cell) return;
+            
+            const index = parseInt(cell.dataset.index);
+            const currentType = editingTeam.pattern[index].type;
+            
+            const typeIndex = SHIFT_TYPES.indexOf(currentType);
+            const nextTypeIndex = (typeIndex + 1) % SHIFT_TYPES.length;
+            const nextType = SHIFT_TYPES[nextTypeIndex];
+
+            // Update state
+            editingTeam.pattern[index] = { type: nextType };
+            renderPatternGrid();
+        }
+
+        /**
+         * Handles change to the Pattern Length input field, resizing the pattern array.
+         */
+        function handlePatternLengthChange(event) {
+            let newLength = parseInt(event.target.value);
+
+            if (isNaN(newLength) || newLength < 1) newLength = 1;
+            if (newLength > 30) newLength = 30;
+            
+            event.target.value = newLength; 
+
+            const oldLength = editingTeam.pattern.length;
+            
+            if (newLength === oldLength) return;
+            
+            const newPattern = [];
+            for (let i = 0; i < newLength; i++) {
+                if (i < oldLength) {
+                    newPattern.push(editingTeam.pattern[i]);
+                } else {
+                    newPattern.push({ type: 'OFF' });
+                }
+            }
+            
+            editingTeam.patternLength = newLength;
+            editingTeam.pattern = newPattern;
+            
+            renderPatternGrid();
+        }
+
+        async function saveTeamPattern() {
+            if (!userId) return showToast('You must be signed in.', true);
+            // All authenticated users can create or update their own team patterns.
+
+            const teamName = document.getElementById('team-name-input').value.trim();
+            const anchor = document.getElementById('pattern-anchor-date').value;
+            const patternLength = parseInt(document.getElementById('pattern-length').value);
+            // Use the pattern array from the editing state
+            const pattern = editingTeam.pattern.slice(0, patternLength); 
+
+            if (!teamName) {
+                return showToast('Please enter a Team Name.', true);
+            }
+            if (!anchor) {
+                return showToast('Please set an Anchor Date.', true);
+            }
+            
+            if (patternLength < 1) {
+                return showToast('Pattern length must be at least 1.', true);
+            }
+
+            const teamData = { teamName, anchor, patternLength, pattern };
+            
+            try {
+                if (editingTeam.id) {
+                    // Update existing team
+                    const teamDocRef = doc(db, `users/${userId}/teams`, editingTeam.id);
+                    await updateDoc(teamDocRef, teamData);
+                    showToast(`Team "${teamName}" updated!`);
+                } else {
+                    // Add new team
+                    await addDoc(collection(db, `users/${userId}/teams`), teamData);
+                    showToast(`New team "${teamName}" created!`);
+                }
+                
+                toggleOverlay('edit-team-pattern-overlay');
+                openTeamManager(); // Return to the manager view
+            } catch (error) {
+                console.error("Error saving team pattern:", error);
+                showToast('Failed to save team pattern.', true);
+            }
+        }
+
+        // --- CALENDAR VIEW FUNCTIONS ---
+
+        function openCalendarView() {
+            renderCalendarView();
+            toggleOverlay('calendar-overlay');
+        }
+
+        function renderCalendarView() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            const calendarTitle = document.getElementById('calendar-title');
+            const weekdaysGrid = document.getElementById('calendar-weekdays');
+            
+            if (!calendarGrid || !calendarTitle || !weekdaysGrid) return;
+            
+            const activeTeamPattern = getActiveTeamPattern();
+
+            const year = displayedDate.getFullYear();
+            const month = displayedDate.getMonth();
+            
+            calendarTitle.textContent = displayedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            
+            // UPDATED: Filter shifts for calendar view
+            const filteredShifts = allShifts.filter(s => isTeamRelevant(s.team));
+
+            const shiftsForMonth = filteredShifts.filter(s => {
+                const shiftDate = new Date(s.rawDate + 'T00:00:00');
+                return shiftDate.getFullYear() === year && shiftDate.getMonth() === month;
+            });
+
+            const shiftsByDay = new Map();
+            for (const shift of shiftsForMonth) {
+                const day = new Date(shift.rawDate + 'T00:00:00').getDate();
+                shiftsByDay.set(day, shift);
+            }
+
+            calendarGrid.innerHTML = '';
+            weekdaysGrid.innerHTML = '';
+
+            for (const dayName of WEEKDAYS) {
+                const headerCell = document.createElement('div');
+                headerCell.className = 'text-center text-xs sm:text-sm font-bold text-gray-500 uppercase';
+                headerCell.textContent = dayName;
+                weekdaysGrid.appendChild(headerCell);
+            }
+
+            const firstDayOfWeek = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'calendar-cell empty rounded-lg';
+                calendarGrid.appendChild(emptyCell);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-cell rounded-lg p-2 flex flex-col';
+
+                const dayDate = new Date(year, month, day);
+                const dayOfWeek = dayDate.getDay();
+                
+                let dayNumClasses = 'day-num text-sm sm:text-base';
+                if (dayOfWeek === 0 || dayOfWeek === 6) {
+                    dayNumClasses += ' weekend';
+                }
+                
+                // Day number is now outside the inner card
+                let dayNumHTML = `<span class="${dayNumClasses}">${day}</span>`;
+
+                const loggedShift = shiftsByDay.get(day);
+                const autoShift = getAutoShiftForDay(day, year, month, activeTeamPattern);
+                const isAuto = autoShift !== null;
+                const autoShiftType = autoShift ? autoShift.type : null;
+                
+                // Determine the cell's base background style based on actual/auto shift
+                let shiftTypeClass = 'shift-bg-Other';
+                if (loggedShift) {
+                    shiftTypeClass = `shift-bg-${loggedShift.shift || 'Other'}`;
+                } else if (isAuto) {
+                    shiftTypeClass = `shift-bg-${autoShiftType || 'Other'}`;
+                }
+                cell.classList.add(shiftTypeClass);
+
+                let contentHTML = '';
+
+                if (loggedShift) {
+                    // --- RENDER LOGGED SHIFT (OVERRIDE) ---
+                    const colorInfo = LOCATION_COLORS[loggedShift.location] || LOCATION_COLORS[REDEPLOY_MARKER] || { bg: 'bg-gray-100', text: 'text-gray-800' };
+                    
+                    let shiftIcon;
+                    if (loggedShift.shift === 'Morning') {
+                        shiftIcon = ICONS.morning;
+                    } else if (loggedShift.shift === 'Night') {
+                        shiftIcon = ICONS.night;
+                    } else {
+                        shiftIcon = ICONS.others;
+                    }
+                    
+                    // Condense location text for small calendar cells
+                    let displayLocation = loggedShift.location;
+                    if (displayLocation.startsWith('AdHoc_')) {
+                         displayLocation = 'AdHoc: ' + displayLocation.replace('AdHoc_', '');
+                    } else if (displayLocation.startsWith('Redeploy_')) {
+                         displayLocation = 'R/D: ' + displayLocation.replace('Redeploy_', '');
+                    } 
+                    
+                    // Further truncate / Abbreviate for display within the box
+                    if (displayLocation.length > 15) {
+                         displayLocation = displayLocation.substring(0, 12) + '...';
+                    } else {
+                        displayLocation = displayLocation.replace(' (CNB DST)', ' N1').replace('OE / STANDBY', 'OE/SB').replace('VISITOR X-RAY', 'VISIT. X').replace('STAFF X-RAY', 'STAFF X').replace('GUARD HOUSE', 'G HOUSE');
+                    }
+
+
+                    contentHTML = `
+                        <div class="logged-shift-card">
+                            <div class="flex flex-col items-center flex-grow">
+                                <span class="shift-icon">${shiftIcon}</span>
+                                <span class="location-text" title="${loggedShift.location}">
+                                    ${displayLocation}
+                                </span>
+                            </div>
+                            <div class="mt-1 flex flex-col items-center w-full">
+                                <span class="hours-text">${loggedShift.hours}h</span>
+                                ${loggedShift.isOT ? '<span class="ot-tag-cal">OT</span>' : ''}
+                            </div>
+                        </div>
+                    `;
+                    // Add click handler to edit the *existing* shift
+                    cell.onclick = () => {
+                        toggleOverlay('calendar-overlay'); // Close calendar
+                        window.prepareEditShift(loggedShift.id); // Open logger with this shift
+                    };
+                } else if (isAuto && activeTeamPattern && userProfile.userTeamId) {
+                    // --- RENDER AUTO-PATTERN SHIFT ---
+                    let shiftIcon = '';
+                    let shiftColor = 'text-gray-700';
+                    let hours = '12h';
+
+                    if (autoShiftType === 'M') {
+                        shiftIcon = ICONS.morning;
+                        shiftColor = 'text-amber-500';
+                    } else if (autoShiftType === 'N') {
+                        shiftIcon = ICONS.night;
+                        shiftColor = 'text-indigo-700';
+                    } else if (autoShiftType === 'OFF') {
+                        shiftIcon = ''; // No icon for OFF day
+                        shiftColor = 'text-green-700';
+                        hours = '0h';
+                    }
+                    
+                    contentHTML = `
+                        <div class="auto-shift-card">
+                            <span class="shift-icon" style="opacity: 0.6; color: ${shiftColor};">${shiftIcon}</span>
+                            <span class="auto-shift-text" style="color: ${shiftColor};">${autoShiftType}</span>
+                            <span class="text-xs text-gray-500">${hours}</span>
+                        </div>
+                    `;
+                    
+                    // Allow clicking on ANY auto-pattern day (M, N, or OFF) to log a new shift
+                    cell.onclick = () => {
+                        toggleOverlay('calendar-overlay'); // Close calendar
+                        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        
+                        let shiftType;
+                        if (autoShiftType === 'N') {
+                            shiftType = 'Night'; 
+                        } else if (autoShiftType === 'OFF') {
+                            shiftType = 'OFF_DAY_OT'; 
+                        } else {
+                            shiftType = 'Morning'; 
+                        }
+
+                        prepareNewShift(dateString, shiftType); // Open logger pre-filled
+                    };
+                } else {
+                    // No logged shift and no pattern or no active team selected
+                    cell.classList.add('empty'); // Make empty days slightly less prominent
+                }
+                
+                cell.innerHTML = `${dayNumHTML}${contentHTML}`;
+                calendarGrid.appendChild(cell);
+            }
+        }
+    </script>
+</body>
+</html>
+
