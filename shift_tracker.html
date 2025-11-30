@@ -118,7 +118,7 @@
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
          <header class="flex justify-between items-center mb-4">
-             <h2 class="text-3xl font-bold text-center flex-grow">Shift History</h2>
+             <h2 class="text-3xl font-bold text-center flex-grow">Shift Tracker</h2>
              <div class="text-right">
                  <p id="user-display" class="text-sm text-gray-600 truncate max-w-[150px]"></p>
                  <button id="auth-button" class="btn text-sm font-semibold text-blue-600 hover:text-blue-800">Sign In</button>
@@ -1248,11 +1248,27 @@
                     </ul>
                 </div>`;
 
-            // Logic to prevent duplicate "Other Duties"
-            // If user has "Both" filter, we include Others in Sentry table, but EXCLUDE them from Foyer table.
+            // NEW: Professional Summary Card HTML
+            const summaryHTML = `
+                <h3>Summary</h3>
+                <div style="display: flex; gap: 15px; margin-bottom: 2em;">
+                    <div style="flex: 1; padding: 15px; background: #eff6ff; border-radius: 8px; border: 1px solid #dbeafe; text-align: center;">
+                        <div style="font-size: 0.9em; color: #1e40af; font-weight: 600; text-transform: uppercase;">Planned Hours</div>
+                        <div style="font-size: 1.8em; font-weight: 800; color: #1e3a8a; margin-top: 5px;">${CONTRACTUAL_HOURS}</div>
+                    </div>
+                    <div style="flex: 1; padding: 15px; background: #eef2ff; border-radius: 8px; border: 1px solid #e0e7ff; text-align: center;">
+                        <div style="font-size: 0.9em; color: #3730a3; font-weight: 600; text-transform: uppercase;">Total Logged</div>
+                        <div style="font-size: 1.8em; font-weight: 800; color: #312e81; margin-top: 5px;">${totalHours}</div>
+                    </div>
+                    <div style="flex: 1; padding: 15px; background: #fffbeb; border-radius: 8px; border: 1px solid #fde68a; text-align: center;">
+                        <div style="font-size: 0.9em; color: #92400e; font-weight: 600; text-transform: uppercase;">Overtime</div>
+                        <div style="font-size: 1.8em; font-weight: 800; color: #b45309; margin-top: 5px;">${otHoursSummary}</div>
+                    </div>
+                </div>
+            `;
+
             let sentryTableHTML = '';
             if (userProfile.userLocationFilter === 'Sentry' || userProfile.userLocationFilter === 'Both') {
-                // Include Sentry AND Others shifts
                 const relevant = shiftsForReport.filter(s => s.team === 'Sentry' || s.team === 'Others'); 
                 const breakdown = [...DUTY_LOCATIONS.Sentry, ...DUTY_LOCATIONS.Others];
                 sentryTableHTML = `<h3>Sentry & Other Duties Frequency</h3><table><thead><tr><th style="width: 40%;">Location / Duty</th><th style="width: 20%;">Morning</th><th style="width: 20%;">Night</th><th style="width: 20%;">Total</th></tr></thead><tbody>${createTeamBreakdown(breakdown, relevant)}</tbody></table>`;
@@ -1260,39 +1276,19 @@
 
             let foyerTableHTML = '';
             if (userProfile.userLocationFilter === 'Foyer' || userProfile.userLocationFilter === 'Both') {
-                // If filter is Both, strictly show Foyer shifts only. If filter is Foyer, show Foyer + Others.
                 const isBoth = userProfile.userLocationFilter === 'Both';
                 const relevant = shiftsForReport.filter(s => s.team === 'Foyer' || (!isBoth && s.team === 'Others'));
                 const breakdown = isBoth ? [...DUTY_LOCATIONS.Foyer] : [...DUTY_LOCATIONS.Foyer, ...DUTY_LOCATIONS.Others];
-                
                 foyerTableHTML = `<h3>Foyer ${!isBoth ? '& Other ' : ''}Duties Frequency</h3><table><thead><tr><th style="width: 40%;">Location / Duty</th><th style="width: 20%;">Morning</th><th style="width: 20%;">Night</th><th style="width: 20%;">Total</th></tr></thead><tbody>${createTeamBreakdown(breakdown, relevant)}</tbody></table>`;
             }
 
-            // REINSERTED: Overtime Breakdown Table
             const otBreakdownHTML = `
                 <h3 style="margin-top: 2em;">Overtime Shift Breakdown (Count)</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 50%;">Shift Type (Flagged OT)</th>
-                            <th style="width: 50%;">Shift Count</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="padding: 8px;">Morning OT Shifts</td>
-                            <td style="padding: 8px; text-align: center;">${totalMorningOTShifts}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px;">Night OT Shifts</td>
-                            <td style="padding: 8px; text-align: center;">${totalNightOTShifts}</td>
-                        </tr>
-                        <tr style="font-weight: 700; background-color: #fef3c7;">
-                            <td style="padding: 8px;">TOTAL OT SHIFTS LOGGED:</td>
-                            <td style="padding: 8px; text-align: center;">${totalOTShifts}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <table><thead><tr><th style="width: 50%;">Shift Type (Flagged OT)</th><th style="width: 50%;">Shift Count</th></tr></thead><tbody>
+                    <tr><td style="padding: 8px;">Morning OT Shifts</td><td style="padding: 8px; text-align: center;">${totalMorningOTShifts}</td></tr>
+                    <tr><td style="padding: 8px;">Night OT Shifts</td><td style="padding: 8px; text-align: center;">${totalNightOTShifts}</td></tr>
+                    <tr style="font-weight: 700; background-color: #fef3c7;"><td style="padding: 8px;">TOTAL OT SHIFTS LOGGED:</td><td style="padding: 8px; text-align: center;">${totalOTShifts}</td></tr>
+                </tbody></table>
             `;
             
             const detailedLogBody = shiftsForReport.map(s => {
@@ -1307,7 +1303,7 @@
                 return `<tr style="border-left: 5px solid ${colorInfo.hex};"><td style="padding: 8px;">${new Date(s.rawDate+'T00:00:00').toLocaleDateString('en-GB')}</td><td style="padding: 8px; font-weight: 600;">${s.shift}</td><td style="padding: 8px;">${displayLocation.toUpperCase()}</td><td style="padding: 8px; text-align: center;">${s.hours} ${isOTMark}</td></tr>`;
             }).join('');
             
-            const reportHTML = `<html><head><title>Shift Report - ${dateRangeTitle}</title><style>body{font-family:sans-serif;margin:2em;}h1,h2{text-align:center;color:#333}h3{margin-top:1.5em;color:#555;}ul{list-style:none;padding:0;}ul li{margin-bottom:0.5em;font-size:1.1em;}table{width:100%;border-collapse:collapse;margin-top:1em;margin-bottom:2em}th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:0.95em;}th{background-color:#e5e7eb;font-weight:600;text-align:center;}th:first-child, td:first-child { text-align: left; }tr:nth-child(even) td{background-color:#f9fafb;}</style></head><body><h1>Shift Report</h1><h2>${dateRangeTitle}</h2>${userMetadataHTML}<h3>Summary</h3><ul><li>Planned Hours: ${CONTRACTUAL_HOURS}</li><li>Total Logged: ${totalHours}</li><li>Overtime: ${otHoursSummary}</li></ul>${sentryTableHTML}${foyerTableHTML}${otBreakdownHTML}<h3>Detailed Log</h3><table><thead><tr><th>Date</th><th>Shift</th><th>Location</th><th style="text-align: center; width: 15%;">Hours</th></tr></thead><tbody>${detailedLogBody}</tbody></table></body></html>`;
+            const reportHTML = `<html><head><title>Shift Report - ${dateRangeTitle}</title><style>body{font-family:sans-serif;margin:2em;}h1,h2{text-align:center;color:#333}h3{margin-top:1.5em;color:#555;}ul{list-style:none;padding:0;}ul li{margin-bottom:0.5em;font-size:1.1em;}table{width:100%;border-collapse:collapse;margin-top:1em;margin-bottom:2em}th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:0.95em;}th{background-color:#e5e7eb;font-weight:600;text-align:center;}th:first-child, td:first-child { text-align: left; }tr:nth-child(even) td{background-color:#f9fafb;}</style></head><body><h1>Shift Report</h1><h2>${dateRangeTitle}</h2>${userMetadataHTML}${summaryHTML}${sentryTableHTML}${foyerTableHTML}${otBreakdownHTML}<h3>Detailed Log</h3><table><thead><tr><th>Date</th><th>Shift</th><th>Location</th><th style="text-align: center; width: 15%;">Hours</th></tr></thead><tbody>${detailedLogBody}</tbody></table></body></html>`;
             
             const blob = new Blob([reportHTML], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
@@ -1518,3 +1514,4 @@
     </script>
 </body>
 </html>
+
