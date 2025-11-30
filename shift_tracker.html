@@ -403,12 +403,13 @@
         // --- CONSTANTS UPDATED TO UPPERCASE ---
         const REDEPLOY_MARKER = 'REDEPLOY LOCATION';
         const ADHOC_MARKER = 'ADHOC DETAILS'; 
+        const TRAINING_MARKER = 'TRAINING'; // New marker for training input
         const OFF_DAY_MARKER = 'OFF DAY'; 
         
         const DUTY_LOCATIONS = { 
             Sentry: ['E1', 'GUARD HOUSE', 'ECHO 3', 'PATROL 1', 'OE / STANDBY', 'ECHO 2', 'PATROL 2', 'N1 (CNB DST)'], 
             Foyer: ['VISITOR X-RAY', 'STAFF X-RAY', 'N1 (CNB DST)', 'OE / STANDBY', 'VERTICAL PROWLER'], 
-            Others: ['TRAINING', 'AL', 'MC', OFF_DAY_MARKER, REDEPLOY_MARKER, ADHOC_MARKER] 
+            Others: [TRAINING_MARKER, 'AL', 'MC', OFF_DAY_MARKER, REDEPLOY_MARKER, ADHOC_MARKER] 
         };
         const SHIFT_TEAMS = ['Sentry', 'Foyer', 'Others'];
         const SHIFT_TYPES = ['M', 'N', 'OFF']; 
@@ -433,7 +434,7 @@
             'AL': { bg: 'bg-sky-100', text: 'text-sky-800', hex: '#e0f2fe' }, 
             'MC': { bg: 'bg-rose-100', text: 'text-rose-800', hex: '#ffe4e6' }, 
             // Uppercase keys for new data
-            'TRAINING': { bg: 'bg-lime-100', text: 'text-lime-800', hex: '#f0fdf4' }, 
+            [TRAINING_MARKER]: { bg: 'bg-lime-100', text: 'text-lime-800', hex: '#f0fdf4' }, 
             'AL': { bg: 'bg-sky-100', text: 'text-sky-800', hex: '#e0f2fe' }, 
             'MC': { bg: 'bg-rose-100', text: 'text-rose-800', hex: '#ffe4e6' }, 
             'OT': { bg: 'bg-amber-100', text: 'text-amber-800', hex: '#fef3c7' },
@@ -774,7 +775,7 @@
                 displayedShifts = shiftsForMonth.filter(s => {
                     const loc = s.location.toLowerCase();
                     const team = s.team.toLowerCase();
-                    const cleanLoc = loc.replace('adhoc_', '').replace('redeploy_', '');
+                    const cleanLoc = loc.replace('adhoc_', '').replace('redeploy_', '').replace('training_', '');
                     return loc.includes(searchTerm) || cleanLoc.includes(searchTerm) || team.includes(searchTerm);
                 });
                 
@@ -821,6 +822,9 @@
                 } else if (displayLocation.startsWith('Redeploy_')) {
                     displayLocation = `REDEPLOY: ${displayLocation.replace('Redeploy_', '')}`;
                     colorKey = REDEPLOY_MARKER;
+                } else if (displayLocation.startsWith('Training_')) {
+                    displayLocation = `TRAINING: ${displayLocation.replace('Training_', '')}`;
+                    colorKey = TRAINING_MARKER;
                 }
                 
                 // Ensure colorKey matches one of our keys (which might be mixed case or uppercase)
@@ -908,6 +912,13 @@
                 else if (savedLocation.startsWith('Redeploy_') && shiftToEdit.team === 'Others') {
                      const freeText = savedLocation.replace('Redeploy_', '');
                      dutyLocation.value = REDEPLOY_MARKER;
+                     redeployInput.value = freeText;
+                     redeployInput.classList.remove('hidden');
+                     locationFound = true;
+                }
+                else if (savedLocation.startsWith('Training_') && shiftToEdit.team === 'Others') {
+                     const freeText = savedLocation.replace('Training_', '');
+                     dutyLocation.value = TRAINING_MARKER;
                      redeployInput.value = freeText;
                      redeployInput.classList.remove('hidden');
                      locationFound = true;
@@ -1011,6 +1022,10 @@
                 const freeText = redeployInput.value.trim();
                 if (!freeText) return showToast('Enter AdHoc details.', true);
                 finalLocation = `AdHoc_${freeText}`; 
+            } else if (finalLocation === TRAINING_MARKER) {
+                const freeText = redeployInput.value.trim();
+                if (!freeText) return showToast('Enter Training details.', true);
+                finalLocation = `Training_${freeText}`;
             }
 
             const hours = parseFloat(document.getElementById('shift-hours').value);
@@ -1065,10 +1080,11 @@
             const redeployInput = document.getElementById('redeploy-location-input');
             const selectedValue = dutyLocationSelect.value;
             
-            if ((selectedValue === REDEPLOY_MARKER || selectedValue === ADHOC_MARKER) && selectedTeam === 'Others') {
+            if ((selectedValue === REDEPLOY_MARKER || selectedValue === ADHOC_MARKER || selectedValue === TRAINING_MARKER) && selectedTeam === 'Others') {
                 redeployInput.classList.remove('hidden');
                 if (selectedValue === REDEPLOY_MARKER) redeployInput.placeholder = "ENTER REDEPLOY LOCATION (E.G., BLOCK 12)";
-                else redeployInput.placeholder = "ENTER ADHOC DETAILS (E.G., EVENT GUARD)";
+                else if (selectedValue === ADHOC_MARKER) redeployInput.placeholder = "ENTER ADHOC DETAILS (E.G., EVENT GUARD)";
+                else if (selectedValue === TRAINING_MARKER) redeployInput.placeholder = "ENTER TRAINING DETAILS (E.G., FIRE SAFETY)";
                 redeployInput.focus();
             } else {
                 redeployInput.classList.add('hidden');
@@ -1168,19 +1184,23 @@
                     }
                 });
                 
-                const markersToRemove = [REDEPLOY_MARKER, ADHOC_MARKER, 'OT'];
+                const markersToRemove = [REDEPLOY_MARKER, ADHOC_MARKER, TRAINING_MARKER, 'OT'];
                 const locationsToReport = Array.from(new Set([...teamLocations, ...Array.from(allReportedLocations)]))
                     .filter(loc => !markersToRemove.includes(loc))
                     .sort((a, b) => a.localeCompare(b));
 
                 return locationsToReport.map(loc => {
                     const counts = countsMap.get(loc) || { morning: 0, night: 0 };
-                    const isPrefixedFreeText = loc.startsWith('AdHoc_') || loc.startsWith('Redeploy_');
+                    const isPrefixedFreeText = loc.startsWith('AdHoc_') || loc.startsWith('Redeploy_') || loc.startsWith('Training_');
                     let colorKey = loc;
-                    if(isPrefixedFreeText) colorKey = loc.startsWith('AdHoc_') ? ADHOC_MARKER : REDEPLOY_MARKER;
+                    if(isPrefixedFreeText) {
+                        if (loc.startsWith('AdHoc_')) colorKey = ADHOC_MARKER;
+                        else if (loc.startsWith('Redeploy_')) colorKey = REDEPLOY_MARKER;
+                        else if (loc.startsWith('Training_')) colorKey = TRAINING_MARKER;
+                    }
                     
                     const colorInfo = LOCATION_COLORS[colorKey] || LOCATION_COLORS[colorKey.toUpperCase()] || { bg: 'bg-gray-100', text: 'text-gray-800' };
-                    const displayLoc = loc.replace('AdHoc_', 'ADHOC: ').replace('Redeploy_', 'REDEPLOY: ').toUpperCase();
+                    const displayLoc = loc.replace('AdHoc_', 'ADHOC: ').replace('Redeploy_', 'REDEPLOY: ').replace('Training_', 'TRAINING: ').toUpperCase();
                     const totalShifts = counts.morning + counts.night;
 
                     return `<tr>
@@ -1281,6 +1301,7 @@
                 let colorKey = s.location;
                 if (s.location.startsWith('AdHoc_')) { displayLocation = `ADHOC: ${s.location.replace('AdHoc_', '')}`; colorKey = ADHOC_MARKER; }
                 else if (s.location.startsWith('Redeploy_')) { displayLocation = `REDEPLOY: ${s.location.replace('Redeploy_', '')}`; colorKey = REDEPLOY_MARKER; }
+                else if (s.location.startsWith('Training_')) { displayLocation = `TRAINING: ${s.location.replace('Training_', '')}`; colorKey = TRAINING_MARKER; }
                 
                 const colorInfo = LOCATION_COLORS[colorKey] || LOCATION_COLORS[colorKey.toUpperCase()] || { hex: '#ffffff' };
                 return `<tr style="border-left: 5px solid ${colorInfo.hex};"><td style="padding: 8px;">${new Date(s.rawDate+'T00:00:00').toLocaleDateString('en-GB')}</td><td style="padding: 8px; font-weight: 600;">${s.shift}</td><td style="padding: 8px;">${displayLocation.toUpperCase()}</td><td style="padding: 8px; text-align: center;">${s.hours} ${isOTMark}</td></tr>`;
@@ -1465,11 +1486,14 @@
                     let colorKey = loggedShift.location;
                     if(colorKey.startsWith('AdHoc_')) colorKey = ADHOC_MARKER;
                     else if(colorKey.startsWith('Redeploy_')) colorKey = REDEPLOY_MARKER;
+                    else if(colorKey.startsWith('Training_')) colorKey = TRAINING_MARKER;
                     
                     const colorInfo = LOCATION_COLORS[colorKey] || LOCATION_COLORS[colorKey.toUpperCase()] || { bg: 'bg-gray-100', text: 'text-gray-800' };
                     let displayLocation = loggedShift.location;
                     if (displayLocation.startsWith('AdHoc_')) displayLocation = 'AdHoc: ' + displayLocation.replace('AdHoc_', '');
                     else if (displayLocation.startsWith('Redeploy_')) displayLocation = 'R/D: ' + displayLocation.replace('Redeploy_', '');
+                    else if (displayLocation.startsWith('Training_')) displayLocation = 'TRN: ' + displayLocation.replace('Training_', '');
+                    
                     displayLocation = displayLocation.length > 15 ? displayLocation.substring(0, 12) + '...' : displayLocation.replace(' (CNB DST)', ' N1').replace('OE / STANDBY', 'OE/SB');
 
                     const shiftIcon = loggedShift.shift === 'Morning' ? ICONS.morning : (loggedShift.shift === 'Night' ? ICONS.night : ICONS.others);
