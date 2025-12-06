@@ -1937,7 +1937,14 @@ function renderValidationResults(reportData) {
 
 
 // === Excel Upload -> Validation Text Bridge ===
-(function() {
+    // Bridge XLSX's global export into this ES module scope so that
+    // we can safely call XLSX.read / XLSX.utils.* even on GitHub Pages
+    // and iOS Safari.
+    const XLSX = (typeof window !== 'undefined' && window.XLSX)
+        ? window.XLSX
+        : undefined;
+
+    (function() {
     function buildTextFromExcel(workbook) {
         var sheetName = workbook.SheetNames[0];
         var ws = workbook.Sheets[sheetName];
