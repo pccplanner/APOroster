@@ -2217,23 +2217,6 @@ function renderValidationResults(reportData) {
     
 
 
-    // === Attendance Server embedded panel toggle ===
-    (function () {
-        var btn = document.getElementById('toggle-attendance-panel-btn');
-        var body = document.getElementById('attendance-panel-body');
-        if (!btn || !body) return;
-        var visible = true;
-        btn.addEventListener('click', function () {
-            visible = !visible;
-            if (visible) {
-                body.classList.remove('hidden');
-                btn.textContent = 'Hide Panel';
-            } else {
-                body.classList.add('hidden');
-                btn.textContent = 'Show Panel';
-            }
-        });
-    
     // === PDF Upload -> Validation Text Bridge (DataExtractor-style) ===
     (function () {
         const pdfInput   = document.getElementById('pdf-upload');
@@ -2371,7 +2354,6 @@ function renderValidationResults(reportData) {
         });
     })();
 
-    })();
 
 </script>
 
@@ -2418,30 +2400,34 @@ function renderValidationResults(reportData) {
       })();
     </script>
 
-
-    <!-- Attendance Server helper (no iframe) -->
-    <section class="mt-10">
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="px-4 py-3 border-b border-gray-200">
-          <h2 class="text-sm font-semibold text-gray-800">Attendance Server Panel</h2>
-          <p class="text-[11px] text-gray-500">
-            For a reliable login, open the
-            <span class="font-mono">Flexible Attendance Report</span> in a separate browser tab using the button below.
-            Export your CSV there, then return here and use <strong>Option 2</strong> to import it into the validator.
-          </p>
-          <div class="mt-2 flex flex-wrap gap-2 items-center">
-            <button type="button"
-                    id="open-attendance-new-tab-btn"
-                    class="inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
-              Open Attendance Server in New Tab
-            </button>
-            <span class="text-[10px] text-gray-400">
-              Recommended on iPhone / iPad – login may not work inside an embedded panel.
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
+            <!-- Attendance Server quick access (no iframe) -->
+            <section class="mt-10">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200">
+                  <div>
+                    <h2 class="text-sm font-semibold text-gray-800">Attendance Server (New Tab)</h2>
+                    <p class="text-[11px] text-gray-500">
+                      Open the <span class="font-mono">Flexible Attendance Report</span> in a new browser tab,
+                      export your CSV there, then return here and use <strong>Option 2</strong> to import it.
+                    </p>
+                    <div class="mt-2 flex flex-wrap gap-2 items-center">
+                      <a
+                        id="open-attendance-new-tab-btn"
+                        href="https://prosoft.unit4cloud.com/ASY/web/eAttendance/Report/ReportTemplateListingDailyAttendance_Edit.aspx?UserRoleType=S&NodeID=2410"
+                        target="_blank"
+                        rel="noopener"
+                        class="inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                      >
+                        Open Attendance Server in New Tab
+                      </a>
+                      <span class="text-[10px] text-gray-400">
+                        Recommended on iPhone / iPad.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
 
     <script>
       // Open Attendance Server in a separate tab (recommended way to login / export CSV)
@@ -2461,3 +2447,6 @@ function renderValidationResults(reportData) {
 
 </body>
 </html>
+            
+
+            
