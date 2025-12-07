@@ -317,7 +317,20 @@
                     <button id="validation-close-button" class="font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-white/50">Close</button>
                 </header>
                 <div class="p-6 space-y-6">
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                        <h3 class="font-bold text-emerald-800 mb-2">Step 0: Open Attendance Server</h3>
+                        <p class="text-sm text-emerald-900 mb-3">
+                            Tap this button to open your Flexible Attendance Report page in a new tab. Generate the report there,
+                            then export to <span class="font-semibold">CSV</span> and upload it here under <span class="font-semibold">Option 2</span>.
+                        </p>
+                        <button id="open-server-btn"
+                                class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold shadow hover:bg-emerald-700">
+                            Open Attendance Server
+                        </button>
+                    </div>
+
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <h3 class="font-bold text-blue-800 mb-2">How to use:</h3>
                         
                         <ol class="list-decimal list-inside text-sm text-blue-700 space-y-1">
@@ -347,7 +360,7 @@
                             The system will read column <span class="font-mono">"DEEME&nbsp;D&nbsp;MTH"</span> for verification.
                         </p>
                         <div class="flex flex-col gap-2">
-                            <input type="file" id="excel-upload" accept=".xls,.xlsx"
+                            <input type="file" id="excel-upload" accept=".csv,.xls,.xlsx,.txt"
                                    class="block w-full text-sm text-green-900
                                           file:mr-4 file:py-2 file:px-4
                                           file:rounded-md file:border-0
@@ -457,6 +470,23 @@
     <div id="toast" class="fixed bottom-24 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg opacity-0 transform translate-y-10 transition-all duration-300 z-50"></div>
 
     <script type="module">
+        const ATTENDANCE_SERVER_URL = "https://prosoft.unit4cloud.com/ASY/web/eAttendance/Report/ReportTemplateListingDailyAttendance_Edit.aspx?UserRoleType=S&NodeID=2410";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('open-server-btn');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    try {
+                        window.open(ATTENDANCE_SERVER_URL, '_blank');
+                    } catch (e) {
+                        console.error('Failed to open attendance server:', e);
+                        alert('Unable to open the attendance server link in this environment. Please open it manually in your browser.');
+                    }
+                });
+            }
+        });
+
+
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, getDocs, updateDoc, setDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -1936,171 +1966,223 @@ function renderValidationResults(reportData) {
 
 
 
-// === Excel Upload -> Validation Text Bridge ===
-    // Bridge XLSX's global export into this ES module scope so that
-    // we can safely call XLSX.read / XLSX.utils.* even on GitHub Pages
-    // and iOS Safari.
-    const XLSX = (typeof window !== 'undefined' && window.XLSX)
-        ? window.XLSX
-        : undefined;
+// === Excel Upload -> Validation Text Bridge (CSV-FOCUSED, NO XLSX NEEDED) ===
+    // Mobile-friendly approach for RptAttendanceFlexible CSV export.
+    // We read the uploaded file as TEXT. If it looks like a CSV, we parse it,
+    // locate the date column (txtTblDaily_ClockDate_1) and hours column
+    // (txtTblDaily_TE40_24) and build simple lines: DD-MM-YYYY\tHH.hh
+    // which are then fed into the validator.
+    //
+    // If the file does not look like CSV (e.g. true binary .xls), we fall
+    // back to putting the raw text into the textarea and let the user decide.
+    (function () {
+        var excelInput = document.getElementById('excel-upload');
+        if (!excelInput) return;
 
-    (function() {
-    function buildTextFromExcel(workbook) {
-        var sheetName = workbook.SheetNames[0];
-        var ws = workbook.Sheets[sheetName];
-        if (!ws) {
-            throw new Error('No sheets found in Excel file.');
-        }
-        var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
-
-        var headerRowIndex = -1;
-        var dateCol = -1;
-        var deemedCol = -1;
-
-        for (var r = 0; r < rows.length; r++) {
-            var row = rows[r];
-            if (!row) continue;
-
-            for (var c = 0; c < row.length; c++) {
-                var cell = row[c];
-                if (cell === null || cell === undefined) continue;
-                var text = String(cell).toUpperCase();
-
-                if (dateCol === -1 && text.indexOf('CLOCK DATE') !== -1) {
-                    dateCol = c;
-                }
-                if (deemedCol === -1 && text.indexOf('DEEM') !== -1 && text.indexOf('MTH') !== -1) {
-                    deemedCol = c;
-                }
-            }
-
-            if (dateCol !== -1 && deemedCol !== -1) {
-                headerRowIndex = r;
-                break;
-            }
-        }
-
-        if (headerRowIndex === -1 || dateCol === -1 || deemedCol === -1) {
-            throw new Error('Could not find both "Clock Date" and "Deemed MTH" headers in Excel sheet.');
-        }
-
-        var lines = ['Clock Date\tDEEME D_MTH'];
-
-        for (var rr = headerRowIndex + 1; rr < rows.length; rr++) {
-            var rrow = rows[rr];
-            if (!rrow) continue;
-
-            var rawDate = rrow[dateCol];
-            var rawDeemed = rrow[deemedCol];
-
-            if (!rawDate) continue;
-
-            var dateText = String(rawDate);
-            var m = dateText.match(/(\d{2}-\d{2}-\d{4})/);
-            if (!m) continue;
-            var dayStr = m[1];
-
-            var hoursNum = 0;
-            if (rawDeemed !== null && rawDeemed !== undefined && String(rawDeemed).trim() !== '') {
-                var hText = String(rawDeemed).replace(',', '.');
-                var parsed = parseFloat(hText);
-                if (!isNaN(parsed)) {
-                    hoursNum = parsed;
-                }
-            }
-
-            lines.push(dayStr + '\t' + hoursNum.toFixed(2));
-        }
-
-        return lines.join('\n');
-    }
-
-    var excelInput = document.getElementById('excel-upload');
-    if (excelInput) {
         excelInput.addEventListener('change', function (evt) {
             var file = evt.target.files && evt.target.files[0];
             var statusEl = document.getElementById('excel-status');
+            var textarea = document.getElementById('validation-input');
+            var analyzeBtn = document.getElementById('analyze-validation-btn');
 
+            function enableAnalyze() {
+                if (analyzeBtn) {
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+
+            function disableAnalyze() {
+                if (analyzeBtn) {
+                    analyzeBtn.disabled = true;
+                    analyzeBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+
+            // If user clears the file input
             if (!file) {
                 if (statusEl) {
                     statusEl.textContent = '';
                     statusEl.classList.add('hidden');
                 }
-                return;
-            }
-
-            // If the XLSX library did not load (e.g. offline / CDN blocked),
-            // show a clear message and stop here so the user can fall back
-            // to copy‑paste mode.
-            if (typeof XLSX === 'undefined') {
-                if (statusEl) {
-                    statusEl.textContent = 'Excel reader is not available in this environment. When this page is hosted on your server / GitHub Pages the Excel upload should work. For now, please paste the report text instead.';
-                    statusEl.classList.remove('hidden');
-                    statusEl.classList.remove('text-green-700');
-                    statusEl.classList.add('text-red-600');
+                if (textarea) {
+                    textarea.disabled = false;
                 }
-                if (typeof showToast === 'function') {
-                    showToast('Excel reader is not available. Please paste the report text instead.', true);
-                }
+                enableAnalyze();
                 return;
             }
 
             if (statusEl) {
-                statusEl.textContent = 'Reading Excel file...';
-                statusEl.classList.remove('hidden');
-                statusEl.classList.remove('text-red-600');
+                statusEl.textContent = 'Reading report file...';
+                statusEl.classList.remove('hidden', 'text-red-600');
                 statusEl.classList.add('text-green-700');
             }
 
+            if (textarea) {
+                textarea.value = '';
+                textarea.disabled = true;
+            }
+            disableAnalyze();
+
             var reader = new FileReader();
+
             reader.onload = function (e) {
                 try {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: 'array' });
-                    var flatText = buildTextFromExcel(workbook);
+                    var text = e.target.result || '';
 
-                    var inputEl = document.getElementById('validation-input');
-                    if (inputEl) {
-                        inputEl.value = flatText;
+                    // Detect binary / gibberish (typical for true .XLS)
+                    var printable = text.replace(/[\x20-\x7E\r\n\t]/g, '');
+                    if (printable.length > 0 && printable.length / text.length > 0.3) {
+                        // Too many non-printable chars → likely binary Excel
+                        if (textarea) {
+                            textarea.value = '';
+                            textarea.disabled = false;
+                        }
+
+                        if (statusEl) {
+                            statusEl.textContent = 'This file looks like binary Excel (.xls). Please export the report as CSV from your system (or open in Excel and Save As CSV) and upload that file instead.';
+                            statusEl.classList.remove('text-green-700');
+                            statusEl.classList.add('text-red-600');
+                            statusEl.classList.remove('hidden');
+                        }
+
+                        enableAnalyze();
+                        if (typeof showToast === 'function') {
+                            showToast('File looks like binary Excel. Please export as CSV and re-upload, or paste the text manually.', true);
+                        }
+                        return;
+                    }
+
+                    // Simple CSV detection: first line contains commas and our known headers
+                    var firstLineEnd = text.indexOf('\n');
+                    if (firstLineEnd === -1) firstLineEnd = text.length;
+                    var headerLine = text.slice(0, firstLineEnd).trim();
+
+                    var isCsvLike = headerLine.indexOf(',') !== -1;
+                    var hasClock = headerLine.indexOf('txtTblDaily_ClockDate_1') !== -1;
+                    var hasHours = headerLine.indexOf('txtTblDaily_TE40_24') !== -1;
+
+                    if (isCsvLike && hasClock && hasHours) {
+                        // Parse as CSV using a very simple splitter (no embedded commas expected)
+                        var lines = text.split(/\r?\n/).filter(function (ln) { return ln.trim() !== ''; });
+                        if (lines.length <= 1) {
+                            throw new Error('CSV appears to have no data rows.');
+                        }
+
+                        var headers = lines[0].split(',');
+                        var dateIdx = headers.indexOf('txtTblDaily_ClockDate_1');
+                        var hoursIdx = headers.indexOf('txtTblDaily_TE40_24');
+
+                        if (dateIdx === -1 || hoursIdx === -1) {
+                            throw new Error('Could not locate date/hours columns in CSV header.');
+                        }
+
+                        var outLines = [];
+                        for (var i = 1; i < lines.length; i++) {
+                            var rowParts = lines[i].split(',');
+                            if (rowParts.length !== headers.length) {
+                                // allow shorter lines at the very end
+                                if (rowParts.length <= Math.max(dateIdx, hoursIdx)) continue;
+                            }
+
+                            var dateVal = (rowParts[dateIdx] || '').trim();
+                            var hoursVal = (rowParts[hoursIdx] || '').trim();
+
+                            if (!dateVal) continue;
+
+                            // Normalize hours
+                            var hText = hoursVal.replace(',', '.');
+                            var hNum = parseFloat(hText);
+                            if (isNaN(hNum)) {
+                                hNum = 0;
+                            }
+
+                            outLines.push(dateVal + '\t' + hNum.toFixed(2));
+                        }
+
+                        var flatText = outLines.join('\n');
+
+                        if (textarea) {
+                            textarea.value = flatText;
+                            textarea.disabled = false;
+                            textarea.scrollTop = 0;
+                        }
+
+                        if (statusEl) {
+                            statusEl.textContent = 'CSV processed. ' + outLines.length + ' rows loaded from txtTblDaily_TE40_24.';
+                            statusEl.classList.remove('text-red-600');
+                            statusEl.classList.add('text-green-700');
+                            statusEl.classList.remove('hidden');
+                        }
+
+                        enableAnalyze();
+                        if (typeof showToast === 'function') {
+                            showToast('CSV processed successfully. Tap "Analyze & Match" to validate.');
+                        }
+                        return;
+                    }
+
+                    // Fallback: not our expected CSV. Just drop raw text into the box.
+                    if (textarea) {
+                        textarea.value = text;
+                        textarea.disabled = false;
+                        textarea.scrollTop = 0;
                     }
 
                     if (statusEl) {
-                        statusEl.textContent = 'Excel loaded. Deemed MTH values captured. Tap "Analyze & Match".';
-                        statusEl.classList.remove('text-red-600');
-                        statusEl.classList.add('text-green-700');
-                        statusEl.classList.remove('hidden');
-                    }
-
-                    if (typeof showToast === 'function') {
-                        showToast('Excel file processed. Review and tap "Analyze & Match".');
-                    }
-                } catch (err) {
-                    console.error(err);
-                    if (statusEl) {
-                        statusEl.textContent = 'Failed to read Excel: ' + err.message;
+                        statusEl.textContent = 'Report file loaded as plain text. If this is not the right format, please export as CSV or paste the text from the system report.';
                         statusEl.classList.remove('text-green-700');
                         statusEl.classList.add('text-red-600');
                         statusEl.classList.remove('hidden');
                     }
+
+                    enableAnalyze();
                     if (typeof showToast === 'function') {
-                        showToast('Could not read Excel file. Please paste report text instead.');
+                        showToast('Report loaded as plain text. If the analyzer fails, please export as CSV or paste the text manually.', true);
+                    }
+                } catch (err) {
+                    console.error('CSV/Text processing error:', err);
+
+                    if (textarea) {
+                        textarea.disabled = false;
+                    }
+
+                    if (statusEl) {
+                        statusEl.textContent = 'Error reading file: ' + err.message;
+                        statusEl.classList.remove('text-green-700');
+                        statusEl.classList.add('text-red-600');
+                        statusEl.classList.remove('hidden');
+                    }
+
+                    enableAnalyze();
+                    if (typeof showToast === 'function') {
+                        showToast('Failed to read the report file. Please try again or paste the text manually.', true);
                     }
                 }
             };
+
             reader.onerror = function () {
                 if (statusEl) {
-                    statusEl.textContent = 'Failed to read Excel file.';
+                    statusEl.textContent = 'Failed to read file. Please try again.';
                     statusEl.classList.remove('text-green-700');
                     statusEl.classList.add('text-red-600');
                     statusEl.classList.remove('hidden');
                 }
+
+                if (textarea) {
+                    textarea.disabled = false;
+                }
+
+                enableAnalyze();
+                if (typeof showToast === 'function') {
+                    showToast('File read error. Please try another file or paste the text manually.', true);
+                }
             };
 
-            reader.readAsArrayBuffer(file);
+            // Read the file purely as text
+            reader.readAsText(file);
         });
-    }
-})();
-
+    })();
 </script>
 </body>
 </html>
