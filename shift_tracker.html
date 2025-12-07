@@ -317,20 +317,7 @@
                     <button id="validation-close-button" class="font-semibold text-blue-600 py-2 px-4 rounded-lg hover:bg-white/50">Close</button>
                 </header>
                 <div class="p-6 space-y-6">
-                    
-                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                        <h3 class="font-bold text-emerald-800 mb-2">Step 0: Open Attendance Server</h3>
-                        <p class="text-sm text-emerald-900 mb-3">
-                            Tap this button to open your Flexible Attendance Report page in a new tab. Generate the report there,
-                            then export to <span class="font-semibold">CSV</span> and upload it here under <span class="font-semibold">Option 2</span>.
-                        </p>
-                        <button id="open-server-btn"
-                                class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold shadow hover:bg-emerald-700">
-                            Open Attendance Server
-                        </button>
-                    </div>
-
-<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <h3 class="font-bold text-blue-800 mb-2">How to use:</h3>
                         
                         <ol class="list-decimal list-inside text-sm text-blue-700 space-y-1">
@@ -470,23 +457,6 @@
     <div id="toast" class="fixed bottom-24 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg opacity-0 transform translate-y-10 transition-all duration-300 z-50"></div>
 
     <script type="module">
-        const ATTENDANCE_SERVER_URL = "https://prosoft.unit4cloud.com/ASY/web/eAttendance/Report/ReportTemplateListingDailyAttendance_Edit.aspx?UserRoleType=S&NodeID=2410";
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const btn = document.getElementById('open-server-btn');
-            if (btn) {
-                btn.addEventListener('click', () => {
-                    try {
-                        window.open(ATTENDANCE_SERVER_URL, '_blank');
-                    } catch (e) {
-                        console.error('Failed to open attendance server:', e);
-                        alert('Unable to open the attendance server link in this environment. Please open it manually in your browser.');
-                    }
-                });
-            }
-        });
-
-
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, getDocs, updateDoc, setDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -2081,7 +2051,6 @@ function renderValidationResults(reportData) {
                         for (var i = 1; i < lines.length; i++) {
                             var rowParts = lines[i].split(',');
                             if (rowParts.length !== headers.length) {
-                                // allow shorter lines at the very end
                                 if (rowParts.length <= Math.max(dateIdx, hoursIdx)) continue;
                             }
 
@@ -2090,7 +2059,6 @@ function renderValidationResults(reportData) {
 
                             if (!dateVal) continue;
 
-                            // Normalize hours
                             var hText = hoursVal.replace(',', '.');
                             var hNum = parseFloat(hText);
                             if (isNaN(hNum)) {
@@ -2183,6 +2151,68 @@ function renderValidationResults(reportData) {
             reader.readAsText(file);
         });
     })();
+
+    
+
+
+    
+
+
+    // === Attendance Server embedded panel toggle ===
+    (function () {
+        var btn = document.getElementById('toggle-attendance-panel-btn');
+        var body = document.getElementById('attendance-panel-body');
+        if (!btn || !body) return;
+        var visible = true;
+        btn.addEventListener('click', function () {
+            visible = !visible;
+            if (visible) {
+                body.classList.remove('hidden');
+                btn.textContent = 'Hide Panel';
+            } else {
+                body.classList.add('hidden');
+                btn.textContent = 'Show Panel';
+            }
+        });
+    })();
+
 </script>
 </body>
 </html>
+            
+
+            
+
+            <!-- Attendance Server side panel (embedded iframe with toggle) -->
+            <section class="mt-10">
+              <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                  <div>
+                    <h2 class="text-sm font-semibold text-gray-800">Attendance Server Panel</h2>
+                    <p class="text-[11px] text-gray-500">
+                      Use this panel to work with the <span class="font-mono">Flexible Attendance Report</span>
+                      while keeping the shift tracker in view. Export your CSV there, then scroll back up and
+                      use <strong>Option 2</strong> to import it.
+                    </p>
+                  </div>
+                  <button id="toggle-attendance-panel-btn"
+                          class="ml-3 inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
+                    Hide Panel
+                  </button>
+                </div>
+                <div id="attendance-panel-body" class="h-[420px] sm:h-[560px] bg-gray-50">
+                  <iframe
+                    id="attendance-server-iframe"
+                    src="https://prosoft.unit4cloud.com/ASY/web/eAttendance/Report/ReportTemplateListingDailyAttendance_Edit.aspx?UserRoleType=S&NodeID=2410"
+                    class="w-full h-full border-0"
+                    loading="lazy"
+                  ></iframe>
+                </div>
+                <div class="px-4 py-2 border-t border-gray-200">
+                  <p class="text-[11px] text-gray-400">
+                    If this area appears blank or shows an error, the remote system may not allow being displayed inside
+                    another page. In that case, open it in a separate tab with your browser's controls instead.
+                  </p>
+                </div>
+              </div>
+            </section>
