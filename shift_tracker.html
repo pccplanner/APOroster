@@ -142,7 +142,12 @@
              <h2 class="text-3xl font-bold text-center flex-grow">Shift Tracker</h2>
              <div class="text-right">
                  <p id="user-display" class="text-sm text-gray-600 truncate max-w-[150px]"></p>
-                 <button id="auth-button" class="btn text-sm font-semibold text-blue-600 hover:text-blue-800">Sign In</button>
+                 <button id="auth-button" class="btn inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/90 px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-100">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                     <path fill-rule="evenodd" d="M3 4.5A1.5 1.5 0 014.5 3h5A1.5 1.5 0 0112 4.5V6h-1V4.5h-5v11h5V14h1v1.5a1.5 1.5 0 01-1.5 1.5h-5A1.5 1.5 0 013 15.5v-11zm9.854 3.646a.5.5 0 10-.708.708L13.293 10H8.5a.5.5 0 000 1h4.793l-1.147 1.146a.5.5 0 10.708.708l2.5-2.5a.5.5 0 000-.708l-2.5-2.5z" clip-rule="evenodd" />
+                 </svg>
+                 <span id="auth-label">Sign In</span>
+             </button>
              </div>
          </header>
 
@@ -633,7 +638,7 @@
 
         function updateUIForUser(user) {
             document.getElementById('user-display').textContent = user.email || 'Anonymous';
-            document.getElementById('auth-button').textContent = 'Sign Out';
+            document.getElementById('auth-label').textContent = 'Sign Out';
             document.getElementById('sign-in-prompt').classList.add('hidden');
             document.getElementById('main-app-ui').classList.remove('hidden');
             
@@ -667,7 +672,14 @@
                                 <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
                             </svg>
                         </div>
-                        <input type="text" id="history-search" placeholder="Search history (e.g. E1, Patrol)..." class="glass-input w-full pl-10 p-3 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <input type="text" id="history-search" placeholder="Search history (e.g. E1, Patrol)..." class="glass-input w-full pl-10 pr-12 p-3 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button type="button" id="history-validation-btn"
+                                class="absolute inset-y-0 right-2 flex items-center justify-center px-2 rounded-full text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                title="Validate with system report">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 2a6 6 0 100 12A6 6 0 0010 2zM8.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l3.5-3.5a1 1 0 00-1.414-1.414L10 10.586 8.707 9.293z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
                     </div>
                     <p id="search-stats" class="text-sm text-blue-800 font-semibold mt-1 mb-2 text-right hidden"></p>
 
@@ -679,7 +691,12 @@
             document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
             document.getElementById('calendar-view-btn').addEventListener('click', openCalendarView);
             document.getElementById('history-search').addEventListener('input', () => renderHistory());
-            
+
+            const historyValidationBtn = document.getElementById('history-validation-btn');
+            if (historyValidationBtn) {
+                historyValidationBtn.addEventListener('click', () => openValidationOverlay(false));
+            }
+
             const manageTeamsBtn = document.getElementById('manage-teams-btn');
             if (manageTeamsBtn) {
                 if (!isAdmin) {
@@ -694,7 +711,7 @@
 
         function updateUIForGuest() {
             document.getElementById('user-display').textContent = '';
-            document.getElementById('auth-button').textContent = 'Sign In';
+            document.getElementById('auth-label').textContent = 'Sign In';
             document.getElementById('sign-in-prompt').classList.remove('hidden');
             document.getElementById('main-app-ui').classList.add('hidden');
             document.getElementById('app-content').innerHTML = '';
@@ -831,18 +848,15 @@
 
             // Validation Tool Listeners
             document.getElementById('open-validation-btn').addEventListener('click', () => {
-                toggleOverlay('tools-overlay');
-                toggleOverlay('validation-overlay');
-                // Reset previous results
-                document.getElementById('validation-results').classList.add('hidden');
-                document.getElementById('validation-input').value = '';
-                // Reset file input
-                const fileInput = document.getElementById('report-image-upload');
-                if(fileInput) fileInput.value = '';
-                const ocrStatus = document.getElementById('ocr-status');
-                if(ocrStatus) ocrStatus.classList.add('hidden');
+                openValidationOverlay(true);
             });
-            document.getElementById('validation-close-button').addEventListener('click', () => toggleOverlay('validation-overlay'));
+            const historyValidationBtn = document.getElementById('history-validation-btn');
+            if (historyValidationBtn) {
+                historyValidationBtn.addEventListener('click', () => {
+                    openValidationOverlay(false);
+                });
+            }
+document.getElementById('validation-close-button').addEventListener('click', () => toggleOverlay('validation-overlay'));
             document.getElementById('analyze-validation-btn').addEventListener('click', runValidationAnalysis);
             document.getElementById('report-image-upload').addEventListener('change', handleImageUpload);
         });
@@ -891,6 +905,25 @@
                 setTimeout(() => overlay.classList.add('hidden'), 400);
             }
         }
+        function openValidationOverlay(fromTools) {
+            if (fromTools) {
+                toggleOverlay('tools-overlay');
+            }
+            toggleOverlay('validation-overlay');
+
+            const resultsEl = document.getElementById('validation-results');
+            if (resultsEl) resultsEl.classList.add('hidden');
+
+            const textArea = document.getElementById('validation-input');
+            if (textArea) textArea.value = '';
+
+            const imgInput = document.getElementById('report-image-upload');
+            if (imgInput) imgInput.value = '';
+
+            const ocrStatus = document.getElementById('ocr-status');
+            if (ocrStatus) ocrStatus.classList.add('hidden');
+        }
+
 
         function changeMonth(direction) {
             displayedDate.setMonth(displayedDate.getMonth() + direction);
